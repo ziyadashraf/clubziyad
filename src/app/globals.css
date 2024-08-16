@@ -2,6 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+body {
+  line-height: normal !important;
+  /* font-size: unset !important; */
+  /* box-sizing: unset !important; */
+}
+
+.backface {
+  cursor: url(https://cdn.prod.website-files.com/656759a…/656e0ae…_icon.svg), auto;
+}
+
+img,
+video {
+  max-width: unset !important;
+  height: unset !important;
+}
+
+
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: unset !important;
+  vertical-align: unset !important;
+}
+
+/*
+
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
@@ -30,4 +61,19 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+} */
+
+body {
+  background-color: #343A40;
+  margin: 0;
+  font-size: 13px;
+  color: #FFF2E6;
+  letter-spacing: -0.1px;
+  font-weight: 400;
+  /* height: 200vh; */
+}
+
+main {
+  background-color: #FFF2E6;
+  border-radius: 0 0 2em 2em;
 }

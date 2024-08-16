@@ -1,0 +1,304 @@
+.nav a {
+    color: unset;
+    text-decoration: none;
+}
+
+@keyframes slideFromTop {
+    from {
+        transform: translateY(-100%);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+
+.navholder {
+    animation: slideFromTop 0.4s forwards 3.1s;
+    transform: translateY(-100%);
+
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3.75em 6em;
+
+}
+
+.hoverer {
+    cursor: pointer;
+}
+
+.btndotstatic {
+    background-color: #343A40;
+    border-radius: 100%;
+    flex: none;
+    width: .45em;
+    height: .45em;
+
+    transition: all 0.35s;
+    margin-right: 0.75em;
+    transform: translate3d(0px, 0px, 0px) scale3d(1, 1, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+
+}
+
+/*----------------------------------------------*/
+
+
+
+.holder {
+    background-color: #343A40;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    grid-column-gap: 2.3em;
+    padding: 1.81em 1.56em 1.69em 1.75em;
+    font-size: 1em;
+    border-radius: 55px;
+    width: fit-content;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+    /* width: 20%; */
+}
+
+.btndot {
+    background-color: #FFF2E6;
+    border-radius: 100%;
+    flex: none;
+    width: .45em;
+    height: .45em;
+    transform: translate3d(0px, 0px, 0px) scale3d(1, 1, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+    transition: all 0.35s;
+    margin-right: 0.75em;
+
+}
+
+.btntext {
+    transition: all 0.35s;
+    transform: translate3d(0%, 0px, 0px) scale3d(1, 1, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+}
+
+
+.arrowsvg {
+    width: 1.46em;
+    height: auto;
+    position: absolute;
+    top: auto;
+    bottom: auto;
+    left: 0%;
+    right: auto;
+    transform: translate3d(-115%, 0px, 0px) scale3d(0, 0, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+    transition: all 0.35s;
+
+}
+
+.hoverer:hover .arrowsvg {
+    transform: translate3d(120%, 0px, 0px) scale3d(1, 1, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+    /* position: relative; */
+}
+
+
+.hoverer:hover .btndot {
+    transform: translate3d(0px, 0px, 0px) scale3d(0, 0, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+}
+
+.hoverer:hover .btntext {
+    transform: translate3d(75%, 0px, 0px) scale3d(1, 1, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+}
+
+
+
+/*Contact End*/
+/*---------------------------------------------------------------*/
+/*Navigation Start*/
+
+.nav {
+    grid-column-gap: 2.19em;
+    background-color: #FFF;
+    border-radius: 6.25em;
+    justify-content: center;
+    align-items: center;
+    padding: 1.81em 3.13em 1.69em 2.13em;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+}
+
+.navigator {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    overflow: hidden;
+}
+
+.btndotrev {
+    background-color: #343A40;
+    border-radius: 100%;
+    flex: none;
+    width: .45em;
+    height: .45em;
+    transform: translate3d(0px, 0px, 0px) scale3d(0, 0, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+    transition: all 0.35s;
+    margin-right: 0.75em;
+
+}
+
+.hoverer:hover .btndotrev {
+    transform: translate3d(0px, 0px, 0px) scale3d(1, 1, 1) rotateX(0deg) rotateY(0deg) rotateZ(0deg) skew(0deg, 0deg);
+    transform-style: preserve-3d;
+}
+
+
+.active .linkholder {
+    color: #343A40;
+}
+
+.linkholder {
+    display: flex;
+    /* flex-direction: column; */
+    color: grey;
+    flex-direction: column;
+    justify-content: flex-start;
+    transition: all .3s;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+
+}
+
+.tabsolute {
+    transition: transform .3s;
+    position: absolute;
+    transform: translate(0, 100%);
+    /* color: #FFF2E6; */
+}
+
+.tstatic {
+    transition: transform .3s;
+    /* position: absolute; */
+    transform: translate(0, 0);
+}
+
+.linkholder:hover {
+
+    color: #343A40;
+}
+
+.inactive .linkholder:hover .tstatic {
+    transform: translate(0, -100%);
+    color: #343A40;
+    opacity: 1;
+}
+
+.inactive .linkholder:hover .tabsolute {
+    transform: translate(0, 0);
+    color: #343A40;
+    opacity: 1;
+
+
+}
+
+/*Navigation End*/
+/*---------------------------------------------------------------*/
+/*Logo Start*/
+
+.logo {
+    font-size: 2em;
+    color: #343A40;
+    font-weight: 500;
+    letter-spacing: -1.75px;
+    width: 20%;
+    cursor: pointer;
+    position: relative;
+    /* Ensure the children are positioned absolutely within this container */
+}
+
+.tabsolute span {
+    margin-right: 5px;
+}
+
+@keyframes slideUp {
+
+    0%,
+    40% {
+        transform: translate(0, 100%);
+    }
+
+    55% {
+        transform: translate(0, 0);
+    }
+
+    80% {
+
+        transform: translate(0, 0);
+
+    }
+
+    100% {
+        transform: translate(0, 100%);
+
+    }
+
+
+}
+
+@keyframes slideDown {
+
+    0%,
+    40% {
+        transform: translate(0, 0);
+    }
+
+    55% {
+        transform: translate(0, -100%);
+    }
+
+    80% {
+        transform: translate(0, -100%);
+    }
+
+    100% {
+        transform: translate(0, 0);
+    }
+}
+
+.logo .tabsolute {
+    position: absolute;
+    color: #343A40;
+    animation: slideUp 2s 1 4.5s;
+}
+
+.logo .tstatic {
+    /* position: absolute; */
+    color: #343A40;
+    animation: slideDown 2s 1 4.5s;
+}
+
+
+
+.logo .linkholder:hover .tstatic {
+    transform: translate(0, -100%);
+    /* color: #FFF2E6; */
+    opacity: 1;
+}
+
+.logo .linkholder:hover .tabsolute {
+    transform: translate(0, 0);
+    /* color: #FFF2E6; */
+    opacity: 1;
+
+
+}

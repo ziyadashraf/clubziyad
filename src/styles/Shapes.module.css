@@ -1,0 +1,50 @@
+.container {
+    grid-column-start: 7;
+    grid-column-end: 11;
+    display: grid;
+    column-gap: 20px;
+    grid-template-columns: auto auto auto auto auto auto auto;
+    grid-template-rows: 45% 45%;
+
+    row-gap: 20px;
+}
+
+.blue {
+    background-color: #49ACF6;
+    grid-column-start: 1;
+    grid-column-end: 8;
+    border-radius: 1em;
+    padding: 2em;
+}
+
+
+
+.halfcirclesholder {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    grid-column-start: 1;
+    grid-column-end: 6;
+}
+
+.white {
+    background-color: white;
+    grid-column-start: 6;
+    grid-column-end: 8;
+    border-radius: 1em;
+    padding: 2em;
+}
+
+
+.halfcircle {
+    height: 100%;
+}
+
+.containertwo {
+    grid-column-start: 11;
+    grid-column-end: 13;
+    background-color: white;
+    border-radius: 1em;
+
+}

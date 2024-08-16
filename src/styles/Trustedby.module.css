@@ -1,0 +1,57 @@
+.trustedholder {
+    padding: 3.75em 6em;
+
+}
+
+.trustedcard {
+    background-color: white;
+    width: max-content;
+
+    /* height: 32em; */
+    padding: 3em;
+    border-radius: 1em;
+    width: 100%;
+
+    margin-top: 3em;
+    margin-bottom: 3em;
+    color: #343A40;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+
+    position: relative;
+
+    /* margin: 2em; */
+}
+
+.trustedcard h6 {
+    font-size: 4em;
+    font-weight: 500;
+    letter-spacing: -3.75px;
+}
+
+.logos {
+    width: 70%;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
+    margin-top: 5em;
+}
+
+
+.logos img {
+    width: 125px;
+    height: auto;
+}
+
+.dot {
+    width: 12.5px;
+    height: 12.5px;
+    background-color: #343A40;
+    border-radius: 100%;
+    top: 30px;
+    position: absolute;
+    right: 30px;
+}

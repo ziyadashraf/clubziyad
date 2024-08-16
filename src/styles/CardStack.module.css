@@ -1,0 +1,32 @@
+.container {
+    height: 100%;
+    width: 100%;
+    grid-column-start: 1;
+    grid-column-end: 8;
+
+}
+
+.paddingcontainer {
+    padding: 2.5em;
+
+
+}
+
+
+.quote {
+    text-align: center;
+    color: #343A40;
+    /* margin-top: -50%; */
+    position: absolute;
+    top: 40%;
+    padding: 0 15em;
+    /* left: 0; */
+
+}
+
+.quote p {
+    font-size: 2.5em;
+    letter-spacing: -2px;
+    font-weight: 500;
+
+}

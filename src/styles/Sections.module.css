@@ -1,0 +1,29 @@
+.container {
+    padding: 3em 6em;
+    padding-bottom: 0;
+    font-size: 1.3em;
+    letter-spacing: -1px;
+    font-weight: 400;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
+
+.underline {
+    text-decoration: underline;
+
+}
+
+.container li {
+    margin-bottom: 30px;
+}
+
+.container input {
+    background-color: transparent;
+    border-bottom: 1px #FFF2E6 solid;
+}
+
+.container input:placeholder {
+    font-size: larger;
+}

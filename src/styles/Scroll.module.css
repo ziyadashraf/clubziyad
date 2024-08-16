@@ -1,0 +1,31 @@
+@font-face {
+    font-family: myFirstFont;
+    src: url(../../public/fonts/Pretty\ Mommy\ Font\ by\ Keithzo.otf);
+
+}
+
+.title {
+    font-size: 4em;
+    color: #343A40;
+    font-weight: 600;
+    letter-spacing: -4px;
+    position: relative;
+    z-index: 9;
+}
+
+.red {
+    color: #FF7676;
+}
+
+.subtitle {
+    font-size: 3em;
+    font-weight: 200;
+    color: #ff7676;
+    margin-top: -130px;
+    /* letter-spacing: -7px; */
+    position: relative;
+    z-index: 1;
+    font-family: myFirstFont;
+
+
+}

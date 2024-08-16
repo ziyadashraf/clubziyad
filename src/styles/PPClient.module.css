@@ -1,0 +1,53 @@
+.container {
+
+    border-radius: 1em;
+    height: 100%;
+
+    color: #343A40;
+    /* display: inline; */
+    grid-column-start: 8;
+    grid-column-end: 11;
+    position: relative;
+    overflow: hidden;
+    /* padding: 1em; */
+}
+
+.image {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+
+}
+
+
+.new {
+    position: absolute;
+    top: 1em;
+    left: 1em;
+    color: white;
+    padding: 0.5em 0.75em;
+    border: white 1px solid;
+    border-radius: 25px;
+}
+
+
+.jobTitle {
+    position: absolute;
+    color: white;
+    bottom: 2em;
+    left: 1em;
+}
+
+.jobTitle h6 {
+    font-size: 4em;
+    margin-bottom: -10px;
+    font-weight: 500;
+    letter-spacing: -3px;
+}
+
+.jobTitle p {
+    font-size: 2em;
+    font-weight: 500;
+    letter-spacing: -1.5px;
+
+}

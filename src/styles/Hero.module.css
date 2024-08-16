@@ -1,0 +1,188 @@
+.heroholder {
+    /* height: 100vh; */
+    /* font-size: 7.5em; */
+    letter-spacing: -6px;
+    padding: 0.5em 1em;
+    /* display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center; */
+    margin-top: 6em;
+    margin-bottom: 10em;
+}
+
+.cursor {
+    transform: rotate(0deg);
+    z-index: 9;
+    position: absolute;
+    /* top: 20%; */
+    /* right: 60%; */
+    offset-path: path("M3.31992 175.96C3.31992 143.251 0.648379 109.486 10.7454 77.8922C24.6008 34.5384 62.0946 6.70653 107.021 3.63701C201.527 -2.8199 288.022 39.9808 333.884 124.238C367.041 185.156 381.333 270.598 325.818 323.19C302.684 345.107 269.03 350.1 238.504 350.972C210.006 351.786 178.154 355.189 153.111 339.066C109.713 311.125 89.0132 259.647 88.5854 210.015C88.3033 177.297 91.9306 152.687 111.63 125.774C126.745 105.123 149.464 80.3913 175.003 73.5393C208.256 64.6177 247.676 65.7653 264.749 99.9127C274.183 118.779 278.177 151.909 270.639 171.863C262.82 192.559 246.961 225.264 226.854 235.876C215.625 241.802 193.024 248.1 181.916 239.461C164.024 225.545 160.024 202.623 160.024 181.081C160.024 168.364 164.336 159.829 178.46 159.829C188.056 159.829 192.119 164.555 200.224 166.87C214.065 170.825 209.284 205.624 206.113 215.136");
+    offset-rotate: 0deg;
+    animation: move 3500ms forwards alternate ease-out;
+}
+
+@keyframes move {
+    0% {
+        offset-distance: 0%;
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 0;
+    }
+
+    100% {
+        offset-distance: 100%;
+        opacity: 1;
+    }
+}
+
+.heroholder h1 {
+    font-size: 7.5em;
+    margin: 0;
+    font-weight: 600;
+    /* overflow-y: hidden; */
+
+}
+
+
+
+.headingHolder {
+    /* overflow-y: hidden; */
+    display: inline;
+
+}
+
+.hero {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    margin-bottom: 8em;
+
+
+}
+
+.h1holder {
+    overflow: hidden;
+    padding: 25px 4px
+}
+
+
+.h1holder h1 {
+    /* overflow: hidden; */
+    animation: slideUp 0.3s ease-out forwards 2.5s;
+    transform: translateY(200%);
+
+}
+
+.hero>div>h1:nth-child(2) {
+
+    margin-top: -20px;
+    animation: slideUp 0.3s ease-out forwards 2.8s;
+    transform: translateY(100%);
+
+
+}
+
+
+
+/* .hero>div>h1:nth-child(2) .headingHolder {
+
+    animation: slideUp 0.5s ease-in-out forwards 1.75s;
+    transform: translateY(100%);
+
+} */
+
+.design {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 100;
+    font-style: italic;
+    display: inline-block;
+    animation: rotateDesign 0.5s ease-in-out forwards 3s;
+    /* transform: rotate(-10deg); */
+    margin: 0 30px 0 10px;
+    position: relative;
+
+}
+
+.designImg {
+    position: absolute;
+    right: -17.5px;
+}
+
+.develop {
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: 100;
+    display: inline;
+    letter-spacing: -8.5px;
+}
+
+.star {
+    position: relative;
+    display: flex;
+}
+
+.textHero {
+    display: inline;
+    /* overflow: hidden; */
+}
+
+@keyframes rotateDesign {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(-10deg);
+    }
+}
+
+
+@keyframes slideUp {
+    0% {
+        transform: translateY(100%);
+        opacity: 0;
+
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+
+
+/*-----------------------------------*/
+/*description*/
+
+.descriptionholder {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    font-size: 1.5em;
+    font-weight: 300;
+    letter-spacing: -0.25px;
+    text-align: center;
+
+
+
+}
+
+.descriptionlineholder {
+    overflow: hidden;
+}
+
+.descriptionline {
+    opacity: 0;
+    animation: slideUp 0.3s ease-out forwards 0.5s;
+}
+
+
+.description {
+    max-width: 45em;
+}
