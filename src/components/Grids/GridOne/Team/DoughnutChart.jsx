@@ -85,6 +85,7 @@ const DoughnutChart = () => {
             { threshold: 0.1 }
         );
 
+
         observer.observe(chartRef.current);
 
         return () => {
