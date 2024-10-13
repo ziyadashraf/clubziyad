@@ -52,16 +52,27 @@ export default function Home() {
 
   return (
     <>
-      <main>
+      <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Navbar />
-        <Hero />
-        <Stats />
-        <LaptopScroll />
-        <Process />
-        <Trustedby />
+        <div style={{ maxWidth: 1500 }}>
+
+          <Hero />
+          <Stats />
+          <LaptopScroll />
+          <Process />
+          <Trustedby />
+        </div>
+
         <Visual />
-        <Work />
-        <Grids />
+        <div style={{ maxWidth: 1500 }}>
+
+          <Work />
+          <Grids />
+          <div>
+            <h4>Hello Let's Chat</h4>
+
+          </div>
+        </div>
       </main>
       <footer>
         <Footer />

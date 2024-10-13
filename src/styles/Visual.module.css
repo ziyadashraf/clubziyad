@@ -1,14 +1,16 @@
 .wrapper {
-
-    height: 150vh;
-    /* overflow: hidden; */
     width: 100vw;
+
+    /* overflow: hidden; */
+    height: 150vh;
     z-index: 10;
     position: relative;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
 
+
+    align-items: center;
 }
 
 .container {
@@ -17,7 +19,9 @@
     display: flex;
     flex-direction: row;
     justify-content: center;
-    border-radius: 20px;
+    align-items: center;
+
+
 
     /* height: 100%; */
 
@@ -28,7 +32,8 @@
     width: 100%;
     position: relative;
     /* top: 40%; */
-    background-color: rgba(99, 99, 99, 0.561);
+    background-color: rgb(255, 91, 116, 40%);
+    color: #FFF2E6;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -39,8 +44,7 @@
 
 
 .resize {
-    background-color: rgb(143, 143, 143);
-    height: 100vh;
+    height: 100%;
     width: 100vw;
     display: flex;
     justify-content: center;

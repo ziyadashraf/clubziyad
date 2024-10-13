@@ -39,20 +39,22 @@ export default function Visual() {
         // GSAP Animation for photos
 
 
-        gsap.fromTo(element,
+        gsap.fromTo(trigger,
             {
-                width: "100vw",
-                height: "100vh",
-                marginTop: '0vh',
+
+                height: '100vh',
+                width: '100%',
+
                 borderRadius: '0',
                 padding: '0'
             },
             {
-                width: "89vw",
-                height: "90vh",
 
-                marginTop: '5vh',
+                height: '100vh',
+                marginTop:'4vh',
+                padding: '3em 6em',
                 borderRadius: '0.25em',
+
 
                 scrollTrigger: {
                     trigger: trigger,
@@ -64,6 +66,30 @@ export default function Visual() {
                 },
             }
         );
+
+        gsap.fromTo(element,
+            {
+                width: '100%',
+
+                borderRadius: '0',
+                padding: '0'
+            },
+            {
+
+                borderRadius: '0.25em',
+
+
+                scrollTrigger: {
+                    trigger: trigger,
+                    start: 'top top',
+                    end: '1500 bottom',
+                    scrub: true,
+
+                    // markers: true
+                },
+            }
+        );
+
 
         photos.forEach((photo, index) => {
             const { x, y } = positions[index];
