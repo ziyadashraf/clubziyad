@@ -31,7 +31,7 @@ export default function Sections() {
             </div>
             <div>
                 <ul>
-                    <li>let's chat</li>
+                    <li>lets chat</li>
                     <li className={styles.underline}>innovate@ziyad.club</li>
 
                 </ul>
