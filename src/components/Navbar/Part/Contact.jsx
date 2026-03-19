@@ -9,7 +9,7 @@ export default function ContactButton() {
         <div style={{ width: '20%', display: 'flex', justifyContent: 'flex-end' }}>
             <a className={styles.holder + ' ' + GeistSans.className + ' ' + styles.hoverer}>
                 <Image src={arrow} alt="right-arrow" className={styles.arrowsvg} />
-                <div className={styles.btntext}>Let's chat</div>
+                <div className={styles.btntext}>Let&apos;s chat</div>
                 <div className={styles.btndot}>
                 </div>
             </a>
