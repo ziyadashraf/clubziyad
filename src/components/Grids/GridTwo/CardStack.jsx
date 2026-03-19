@@ -45,7 +45,7 @@ const CardStack = ({ items, offset = 0, scaleFactor = 0.06 }) => {
                     </div>
                     <div className={styles.quote}>
                         <p>
-                            "{card.content}"
+                            &apos;{card.content}&apos;
                         </p>
                     </div>
                 </motion.div>
