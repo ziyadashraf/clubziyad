@@ -69,7 +69,7 @@ export default function Home() {
           <Work />
           <Grids />
           <div>
-            <h4>Hello Let's Chat</h4>
+            <h4>Hello Let&apos;s Chat</h4>
 
           </div>
         </div>
