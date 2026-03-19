@@ -97,11 +97,11 @@ export default function Hero() {
 
                     <div className={styles.descriptionlineholder}>
                         <div className={styles.descriptionline}>
-                            We’re a creative powerhouse fueled by our passion for designing and developing
+                            We&apos;re a creative powerhouse fueled by our passion for designing and developing
                         </div>
                     </div>
                     <div className={styles.descriptionlineholder}>
-                        <div className={styles.descriptionline}>incredible apps and websites. We're confident we deliver the best visual designs in Egypt</div>
+                        <div className={styles.descriptionline}>incredible apps and websites. We&apos;re confident we deliver the best visual designs in Egypt</div>
                     </div>
                     <div className={styles.descriptionlineholder}>
                         <div className={styles.descriptionline}> —<span style={{ color: '#9747FF' }}>all without breaking the bank.</span></div>
