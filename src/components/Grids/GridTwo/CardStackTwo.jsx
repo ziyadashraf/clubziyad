@@ -78,7 +78,7 @@ const CardStackTwo = () => {
                                     <span className="carousel__name">{name}</span>
                                     <span className="carousel__citation">{citation}</span>
                                 </cite>
-                                <p>"{quote}"</p>
+                                <p>&apos;{quote}&apos;</p>
                             </blockquote>
                         </li>
                     );
