@@ -2456,6 +2456,16 @@ class Component extends DCLogic {
     view.ballScale = props.ballScale * fit;
     view.facetSize = props.facetSize * facetK;
     view.sparkleSize = props.sparkleSize * sparkK;
+    // Phones: the two visible stars (Sparkle 1, top right; Sparkle 3, bottom left) sit
+    // deeper on the ball, a touch smaller and brighter. Relative, so the panel still works.
+    if (Math.min(W, H) < 600) {
+      [1, 3].forEach(function (n) {
+        var s = 'sparkle' + n;
+        view[s + 'Depth'] = Math.min(1, props[s + 'Depth'] * 1.5);
+        view[s + 'Size'] = props[s + 'Size'] * 0.87;
+        view[s + 'Intensity'] = Math.min(2, props[s + 'Intensity'] * 1.4);
+      });
+    }
     this.props = view;
     return Component.prototype.tick.call(this, t);
   };
@@ -2491,6 +2501,7 @@ class Component extends DCLogic {
   var tiltOut = null;
   function setTiltState(s) {
     TILT.state = s;
+    if (TILT.btn) { TILT.btn.hidden = !(s === 'wait' || s === 'denied'); }
     if (tiltOut) { tiltOut.textContent = { on: 'On', wait: 'Tap anywhere', off: 'No sensor', reduced: 'Off (reduce motion)', denied: 'Blocked in browser settings', none: 'Waiting…' }[s] || s; }
   }
   function startTilt() {
@@ -2499,16 +2510,28 @@ class Component extends DCLogic {
     setTiltState('none');
     window.addEventListener('deviceorientation', onTilt);
   }
-  // iOS asks permission, and only from a tap: ask on the first one.
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    TILT.state = 'wait';
-    var ask = function () {
-      window.removeEventListener('touchend', ask); window.removeEventListener('click', ask);
-      DeviceOrientationEvent.requestPermission().then(function (s) {
-        if (s === 'granted') { startTilt(); } else { setTiltState('denied'); }
-      }, function () { setTiltState('denied'); });
+  // iOS asks permission, and only from a tap Safari counts as a gesture. Keep asking on
+  // taps until it's granted (a tap Safari doesn't count just fails quietly), and offer a
+  // real button under Tweak > Page, which always counts.
+  var needsAsk = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+  var asking = false;
+  function askTilt() {
+    if (!needsAsk || asking || TILT.state === 'on' || TILT.state === 'none') { return; }
+    asking = true;
+    var done = function (ok) {
+      asking = false;
+      if (ok) {
+        ['touchend', 'click', 'pointerup'].forEach(function (ev) { window.removeEventListener(ev, askTilt, true); });
+        startTilt();
+      } else { setTiltState('denied'); }
     };
-    window.addEventListener('touchend', ask); window.addEventListener('click', ask);
+    try {
+      DeviceOrientationEvent.requestPermission().then(function (s) { done(s === 'granted'); }, function () { done(false); });
+    } catch (err) { done(false); }
+  }
+  if (needsAsk) {
+    TILT.state = 'wait';
+    ['touchend', 'click', 'pointerup'].forEach(function (ev) { window.addEventListener(ev, askTilt, true); });
   } else { startTilt(); }
 
   var ball = new Ball(props);
@@ -2706,7 +2729,15 @@ class Component extends DCLogic {
     var row4 = document.createElement('div'); row4.className = 'row';
     var l4 = document.createElement('label'); l4.textContent = 'Phone tilt';
     tiltOut = document.createElement('output'); tiltOut.className = 'val'; tiltOut.style.minWidth = '0';
-    row4.appendChild(l4); row4.appendChild(tiltOut);
+    var tiltBtn = document.createElement('button'); tiltBtn.type = 'button'; tiltBtn.textContent = 'Enable tilt';
+    tiltBtn.style.cssText = 'height:28px;border-radius:8px;border:1px solid var(--line);background:rgba(242,241,237,.08);color:var(--ink);font:inherit;font-size:12px;padding:0 10px;cursor:pointer;';
+    tiltBtn.addEventListener('click', askTilt);
+    tiltBtn.hidden = !needsAsk;
+    l4.textContent = 'Phone tilt';
+    var right = document.createElement('span'); right.style.cssText = 'display:inline-flex;gap:8px;align-items:center;';
+    right.appendChild(tiltOut); right.appendChild(tiltBtn);
+    row4.appendChild(l4); row4.appendChild(right);
+    TILT.btn = tiltBtn;
     setTiltState(TILT.state);
     var g = group('Page', [row, row2, row3, row4], false);
     root.appendChild(g);
