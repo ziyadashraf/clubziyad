@@ -2471,8 +2471,10 @@ class Component extends DCLogic {
   };
   // Phone tilt: forward/back leans the rig (as the pointer does on desktop), left/right sways it.
   // Only the rig's tilt follows the phone: the spin is untouched.
+  var REST_PITCH = (window.__restPitch != null ? window.__restPitch : 0.12);
   var TILT = { lean: 0, side: 0, roll: 0, base: null, on: false, last: 0, evt: 0, state: 'off' };
   Ball.prototype.draw = function () {
+    this.pitch += REST_PITCH;   // resting tilt, on every device; pointer and phone lean add to it
     if (TILT.on && PAGE.tilt) {
       var now = performance.now(), dt = TILT.last ? Math.min(0.05, (now - TILT.last) / 1000) : 0.016;
       TILT.last = now;
