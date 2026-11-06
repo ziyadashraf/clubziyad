@@ -2447,16 +2447,21 @@ class Component extends DCLogic {
     // The engine sizes a tile against the screen's short side, so on a 390px phone each
     // tile spans ~2.3x more of the ball than on the 900px canvas board. Scale the tile
     // size with the screen so the ball carries the same tiles everywhere.
-    var facetK = Math.min(W, H) / 900;
+    var s900 = Math.min(1, Math.min(W, H) / 900);
+    var facetK = Math.sqrt(s900);
+    // Stars are scaled with the ball by the engine, so on a small ball they read as specks:
+    // give them back the presence they have on desktop.
+    var sparkK = 1 / Math.sqrt(s900);
     for (var k in props) { view[k] = props[k]; }
     view.ballScale = props.ballScale * fit;
     view.facetSize = props.facetSize * facetK;
+    view.sparkleSize = props.sparkleSize * sparkK;
     this.props = view;
     return Component.prototype.tick.call(this, t);
   };
   // Phone tilt: forward/back leans the rig (as the pointer does on desktop), left/right sways it.
   // Only the rig's tilt follows the phone: the spin is untouched.
-  var TILT = { lean: 0, side: 0, roll: 0, base: null, on: false, last: 0 };
+  var TILT = { lean: 0, side: 0, roll: 0, base: null, on: false, last: 0, evt: 0, state: 'off' };
   Ball.prototype.draw = function () {
     if (TILT.on && PAGE.tilt) {
       var now = performance.now(), dt = TILT.last ? Math.min(0.05, (now - TILT.last) / 1000) : 0.016;
@@ -2474,23 +2479,34 @@ class Component extends DCLogic {
     else if (a === -90 || a === 270) { fb = e.gamma; lr = -e.beta; }
     // People hold a phone at very different angles: the resting angle drifts in slowly,
     // so a sustained hold recentres and only the tilting itself moves the ball.
+    var now = performance.now(), dt = TILT.evt ? Math.min(0.2, (now - TILT.evt) / 1000) : 0;
+    TILT.evt = now;
     if (TILT.base === null) { TILT.base = fb; }
-    TILT.base += (fb - TILT.base) * 0.008;
+    TILT.base += (fb - TILT.base) * (1 - Math.exp(-dt / 8));   // recentres over ~8 s
     var clamp = function (v, m) { return v > m ? m : v < -m ? -m : v; };
-    ball.tiltTarget = clamp((fb - TILT.base) / 30, 1) * 0.175;  // same range as the pointer lean
-    TILT.side = clamp(lr / 30, 1) * -0.18;
-    TILT.on = true;
+    ball.tiltTarget = clamp((fb - TILT.base) / 25, 1) * 0.3;
+    TILT.side = clamp(lr / 25, 1) * -0.3;
+    if (!TILT.on) { TILT.on = true; setTiltState('on'); }
+  }
+  var tiltOut = null;
+  function setTiltState(s) {
+    TILT.state = s;
+    if (tiltOut) { tiltOut.textContent = { on: 'On', wait: 'Tap anywhere', off: 'No sensor', reduced: 'Off (reduce motion)', denied: 'Blocked in browser settings', none: 'Waiting…' }[s] || s; }
   }
   function startTilt() {
-    if (!('DeviceOrientationEvent' in window)) { return; }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { return; }
+    if (!('DeviceOrientationEvent' in window)) { setTiltState('off'); return; }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setTiltState('reduced'); return; }
+    setTiltState('none');
     window.addEventListener('deviceorientation', onTilt);
   }
   // iOS asks permission, and only from a tap: ask on the first one.
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    TILT.state = 'wait';
     var ask = function () {
       window.removeEventListener('touchend', ask); window.removeEventListener('click', ask);
-      DeviceOrientationEvent.requestPermission().then(function (s) { if (s === 'granted') { startTilt(); } }, function () {});
+      DeviceOrientationEvent.requestPermission().then(function (s) {
+        if (s === 'granted') { startTilt(); } else { setTiltState('denied'); }
+      }, function () { setTiltState('denied'); });
     };
     window.addEventListener('touchend', ask); window.addEventListener('click', ask);
   } else { startTilt(); }
@@ -2687,7 +2703,12 @@ class Component extends DCLogic {
     });
     sw3.appendChild(cb3); sw3.appendChild(document.createElement('i'));
     row3.appendChild(l3); row3.appendChild(sw3);
-    var g = group('Page', [row, row2, row3], false);
+    var row4 = document.createElement('div'); row4.className = 'row';
+    var l4 = document.createElement('label'); l4.textContent = 'Phone tilt';
+    tiltOut = document.createElement('output'); tiltOut.className = 'val'; tiltOut.style.minWidth = '0';
+    row4.appendChild(l4); row4.appendChild(tiltOut);
+    setTiltState(TILT.state);
+    var g = group('Page', [row, row2, row3, row4], false);
     root.appendChild(g);
   })();
 
