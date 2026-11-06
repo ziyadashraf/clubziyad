@@ -2380,7 +2380,7 @@ class Component extends DCLogic {
   var DEFAULTS = Object.assign({}, CANVAS, HERO);
 
   // The page's own option: render resolution cap (full-screen at 2x is heavy on weak GPUs).
-  var PAGE = { maxDpr: 2, fit: true };
+  var PAGE = { maxDpr: 2, fit: true, tilt: true };
 
   var PRESETS = {
     'Hero — dark room': {},
@@ -2423,6 +2423,7 @@ class Component extends DCLogic {
   if (!saved) { try { saved = JSON.parse(store.get('zc-ball') || 'null'); } catch (e) { saved = null; } }
   var props = Object.assign({}, DEFAULTS, clean(saved));
   if (saved && saved.$fit === false) { PAGE.fit = false; }
+  if (saved && saved.$tilt === false) { PAGE.tilt = false; }
   if (saved && saved.$maxDpr) { PAGE.maxDpr = Math.min(2, Math.max(0.5, Number(saved.$maxDpr) || 2)); }
 
   // Engine, with the resolution cap applied.
@@ -2453,6 +2454,47 @@ class Component extends DCLogic {
     this.props = view;
     return Component.prototype.tick.call(this, t);
   };
+  // Phone tilt: forward/back leans the rig (as the pointer does on desktop), left/right sways it.
+  // Only the rig's tilt follows the phone: the spin is untouched.
+  var TILT = { lean: 0, side: 0, roll: 0, base: null, on: false, last: 0 };
+  Ball.prototype.draw = function () {
+    if (TILT.on && PAGE.tilt) {
+      var now = performance.now(), dt = TILT.last ? Math.min(0.05, (now - TILT.last) / 1000) : 0.016;
+      TILT.last = now;
+      TILT.roll += (TILT.side - TILT.roll) * Math.min(1, dt * 3);
+      this.roll += TILT.roll;
+    }
+    return Component.prototype.draw.call(this);
+  };
+  function onTilt(e) {
+    if (!PAGE.tilt || e.beta == null || e.gamma == null) { return; }
+    var a = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    var fb = e.beta, lr = e.gamma;                          // portrait
+    if (a === 90) { fb = -e.gamma; lr = e.beta; }           // landscape, home button right
+    else if (a === -90 || a === 270) { fb = e.gamma; lr = -e.beta; }
+    // People hold a phone at very different angles: the resting angle drifts in slowly,
+    // so a sustained hold recentres and only the tilting itself moves the ball.
+    if (TILT.base === null) { TILT.base = fb; }
+    TILT.base += (fb - TILT.base) * 0.008;
+    var clamp = function (v, m) { return v > m ? m : v < -m ? -m : v; };
+    ball.tiltTarget = clamp((fb - TILT.base) / 30, 1) * 0.175;  // same range as the pointer lean
+    TILT.side = clamp(lr / 30, 1) * -0.18;
+    TILT.on = true;
+  }
+  function startTilt() {
+    if (!('DeviceOrientationEvent' in window)) { return; }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { return; }
+    window.addEventListener('deviceorientation', onTilt);
+  }
+  // iOS asks permission, and only from a tap: ask on the first one.
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    var ask = function () {
+      window.removeEventListener('touchend', ask); window.removeEventListener('click', ask);
+      DeviceOrientationEvent.requestPermission().then(function (s) { if (s === 'granted') { startTilt(); } }, function () {});
+    };
+    window.addEventListener('touchend', ask); window.addEventListener('click', ask);
+  } else { startTilt(); }
+
   var ball = new Ball(props);
   var canvas = document.querySelector('canvas[data-disco]');
   ball.onCanvas(canvas);
@@ -2486,6 +2528,7 @@ class Component extends DCLogic {
       var d = diff();
       if (PAGE.maxDpr !== 2) { d.$maxDpr = PAGE.maxDpr; }
       if (!PAGE.fit) { d.$fit = false; }
+      if (!PAGE.tilt) { d.$tilt = false; }
       store.set('zc-ball', JSON.stringify(d));
       var h = toHash(d);
       history.replaceState(null, '', h ? '#' + h : location.pathname + location.search);
@@ -2633,7 +2676,18 @@ class Component extends DCLogic {
     cb.addEventListener('change', function () { PAGE.fit = cb.checked; persist(); });
     sw.appendChild(cb); sw.appendChild(document.createElement('i'));
     row2.appendChild(l2); row2.appendChild(sw);
-    var g = group('Page', [row, row2], false);
+    var row3 = document.createElement('div'); row3.className = 'row';
+    var l3 = document.createElement('label'); l3.htmlFor = 'c-tilt'; l3.textContent = 'Follow phone tilt';
+    var sw3 = document.createElement('span'); sw3.className = 'switch';
+    var cb3 = document.createElement('input'); cb3.type = 'checkbox'; cb3.id = 'c-tilt'; cb3.checked = PAGE.tilt;
+    cb3.addEventListener('change', function () {
+      PAGE.tilt = cb3.checked;
+      if (!PAGE.tilt) { ball.tiltTarget = 0; TILT.side = 0; }
+      persist();
+    });
+    sw3.appendChild(cb3); sw3.appendChild(document.createElement('i'));
+    row3.appendChild(l3); row3.appendChild(sw3);
+    var g = group('Page', [row, row2, row3], false);
     root.appendChild(g);
   })();
 
