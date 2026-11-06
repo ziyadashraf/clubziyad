@@ -1,0 +1,2702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<title>ziyad.club — ball engine</title>
+<meta name="description" content="A real-time chrome mirror ball, drawn from scratch on a 2D canvas. Drag it, then tweak it.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23111'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23bbb' stroke-width='1.5'/%3E%3Ccircle cx='11' cy='11' r='2.5' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --ink: #F2F1ED;
+    --ink-2: rgba(242,241,237,.62);
+    --ink-3: rgba(242,241,237,.38);
+    --line: rgba(242,241,237,.10);
+    --panel: rgba(16,15,14,.82);
+    --accent: #F2F1ED;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0A0A0A; overflow: hidden; }
+  body {
+    font: 13px/1.35 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas[data-disco] {
+    position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh;
+    display: block; touch-action: none; cursor: grab;
+  }
+
+  /* ---------- corner marks ---------- */
+  .mark, .hint { mix-blend-mode: difference; }
+  .mark {
+    position: fixed; left: max(24px, env(safe-area-inset-left)); top: max(22px, env(safe-area-inset-top));
+    font-size: 13px; letter-spacing: -.01em; color: var(--ink); pointer-events: none;
+    user-select: none;
+  }
+  .mark span { color: var(--ink-3); margin-left: 10px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  .hint {
+    position: fixed; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+    pointer-events: none; transition: opacity .6s ease; white-space: nowrap;
+  }
+  body.touched .hint { opacity: 0; }
+
+  /* ---------- toggle ---------- */
+  .toggle {
+    position: fixed; right: max(20px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top));
+    z-index: 3; height: 36px; padding: 0 14px 0 12px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+    font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    transition: background .2s ease, border-color .2s ease;
+  }
+  .toggle:hover { border-color: rgba(242,241,237,.24); }
+  .toggle svg { width: 14px; height: 14px; }
+  .toggle:focus-visible, .panel :focus-visible { outline: 1.5px solid var(--ink); outline-offset: 2px; }
+
+  /* ---------- panel ---------- */
+  .panel {
+    position: fixed; z-index: 2; top: max(62px, calc(env(safe-area-inset-top) + 46px)); right: max(20px, env(safe-area-inset-right));
+    width: 316px; max-height: calc(100dvh - 82px);
+    display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    -webkit-backdrop-filter: blur(20px) saturate(1.2); backdrop-filter: blur(20px) saturate(1.2);
+    box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    transform-origin: top right;
+    transition: opacity .22s ease, transform .22s cubic-bezier(.2,.7,.2,1), visibility 0s linear 0s;
+  }
+  .panel[hidden] { display: flex; opacity: 0; transform: translateY(-6px) scale(.985); visibility: hidden; pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s; }
+
+  .bar { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .bar select, .bar button {
+    height: 30px; border-radius: 8px; border: 1px solid var(--line); background: rgba(242,241,237,.04);
+    color: var(--ink); font: inherit; font-size: 12px; padding: 0 10px; cursor: pointer;
+  }
+  .bar select { flex: 1 1 100%; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23F2F1ED' stroke-opacity='.6' stroke-width='1.3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; padding-right: 26px; }
+  .bar select option { background: #141312; }
+  .bar button { flex: 1 1 0; }
+  .bar button:hover, .bar select:hover { background: rgba(242,241,237,.08); }
+
+  .scroll { overflow-y: auto; overscroll-behavior: contain; padding: 4px 0 8px; scrollbar-width: thin; scrollbar-color: rgba(242,241,237,.18) transparent; }
+
+  details { border-bottom: 1px solid var(--line); }
+  details:last-child { border-bottom: 0; }
+  summary {
+    list-style: none; cursor: pointer; padding: 11px 14px; display: flex; align-items: center; justify-content: space-between;
+    font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); user-select: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: ""; width: 7px; height: 7px; border-right: 1.3px solid var(--ink-3); border-bottom: 1.3px solid var(--ink-3);
+    transform: rotate(-45deg); transition: transform .2s ease; margin-right: 2px; }
+  details[open] > summary::after { transform: rotate(45deg); }
+  summary:hover { color: var(--ink); }
+  summary .n { color: var(--ink-3); margin-left: 6px; letter-spacing: 0; }
+  .rows { padding: 0 14px 10px; display: grid; gap: 9px; }
+
+  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; }
+  .row label { color: var(--ink-2); font-size: 12px; cursor: default; display: flex; align-items: center; gap: 6px; }
+  .row.changed label { color: var(--ink); cursor: pointer; }
+  .row.changed label::after { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--ink); opacity: .8; }
+  .row.changed label:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ink-3); }
+  .val { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 11.5px; min-width: 42px; text-align: right; }
+  .row input[type=range] { grid-column: 1 / -1; }
+
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: transparent; margin: 0; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 2px; border-radius: 2px;
+    background: linear-gradient(to right, var(--ink) 0 var(--p, 50%), rgba(242,241,237,.16) var(--p, 50%) 100%); }
+  input[type=range]::-moz-range-track { height: 2px; border-radius: 2px; background: rgba(242,241,237,.16); }
+  input[type=range]::-moz-range-progress { height: 2px; background: var(--ink); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; margin-top: -5px;
+    background: #0A0A0A; border: 1.5px solid var(--ink); transition: transform .12s ease; }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #0A0A0A; border: 1.5px solid var(--ink); }
+  input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
+
+  .color { display: flex; align-items: center; gap: 8px; }
+  .color input[type=color] { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; padding: 0; border: 1px solid var(--line);
+    border-radius: 6px; background: none; cursor: pointer; }
+  .color input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+  .color input[type=color]::-webkit-color-swatch { border: 0; border-radius: 5px; }
+  .color input[type=color]::-moz-color-swatch { border: 0; border-radius: 5px; }
+  .color input[type=text] { width: 74px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: rgba(242,241,237,.04);
+    color: var(--ink); font: inherit; font-size: 11.5px; padding: 0 7px; font-variant-numeric: tabular-nums; text-transform: lowercase; }
+
+  .switch { position: relative; width: 30px; height: 18px; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .switch i { position: absolute; inset: 0; border-radius: 999px; background: rgba(242,241,237,.16); transition: background .18s ease; pointer-events: none; }
+  .switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); transition: transform .18s ease; }
+  .switch input:checked + i { background: rgba(242,241,237,.55); }
+  .switch input:checked + i::after { transform: translateX(12px); background: #0A0A0A; }
+  .switch input:focus-visible + i { outline: 1.5px solid var(--ink); outline-offset: 2px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: max(56px, calc(env(safe-area-inset-bottom) + 40px)); transform: translate(-50%, 8px);
+    background: var(--ink); color: #0A0A0A; font-size: 12px; padding: 8px 14px; border-radius: 999px;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 4;
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 640px) {
+    .panel { left: 10px; right: 10px; width: auto; top: auto; bottom: max(10px, env(safe-area-inset-bottom));
+      max-height: 58dvh; transform-origin: bottom center; }
+    .panel[hidden] { transform: translateY(12px); }
+    .row label { font-size: 13px; }
+    input[type=range] { height: 28px; }
+    input[type=range]::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -8px; }
+    .bar select, .bar button { height: 36px; }
+    .hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .panel, .toast, .toggle { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas data-disco="true" role="img" aria-label="A dark chrome mirror ball suspended from a ceiling motor, rotating slowly. Drag to spin it."></canvas>
+
+<div class="mark" aria-hidden="true">ziyad.club<span>Ball engine</span></div>
+<div class="hint" aria-hidden="true">Drag the ball</div>
+
+<button class="toggle" id="toggle" type="button" aria-expanded="false" aria-controls="panel">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2 4h7M12 4h2M2 12h2M7 12h7"/><circle cx="10.5" cy="4" r="1.5"/><circle cx="5.5" cy="12" r="1.5"/></svg>
+  <span>Tweak</span>
+</button>
+
+<aside class="panel" id="panel" hidden aria-label="Ball settings">
+  <div class="bar">
+    <select id="preset" aria-label="Preset"></select>
+    <button type="button" id="copyLink">Copy link</button>
+    <button type="button" id="copyJson">Copy JSON</button>
+    <button type="button" id="reset">Reset</button>
+  </div>
+  <div class="scroll" id="controls"></div>
+</aside>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ===== Settings schema — taken unchanged from the "Dark Chrome Mirror Ball" canvas ===== */
+var SCHEMA = {"partyEnvironment":{"editor":"range","default":0,"min":0,"max":100,"step":1,"unit":"%","section":"Environment"},"floorShow":{"editor":"boolean","default":true,"section":"Environment"},"floorLine":{"editor":"range","default":0.91,"min":0.72,"max":0.92,"step":0.005,"section":"Environment"},"floorTexture":{"editor":"range","default":0,"min":0,"max":1.5,"step":0.05,"section":"Environment"},"vignette":{"editor":"range","default":1.2,"min":0,"max":1.2,"step":0.05,"section":"Environment"},"ballDepth":{"editor":"range","default":3.15,"min":1,"max":20,"step":0.05,"section":"Ball"},"ballScale":{"editor":"range","default":2.2,"min":0.4,"max":2.2,"step":0.02,"section":"Ball"},"ballX":{"editor":"range","default":0,"min":-0.4,"max":0.4,"step":0.01,"section":"Ball"},"ballY":{"editor":"range","default":0.07,"min":-0.35,"max":0.35,"step":0.01,"section":"Ball"},"cameraFocal":{"editor":"range","default":1.35,"min":0.7,"max":2.2,"step":0.05,"section":"Ball"},"cameraHeight":{"editor":"range","default":0.36,"min":0.35,"max":0.75,"step":0.01,"section":"Ball"},"spinSpeed":{"editor":"range","default":0.5,"min":0.15,"max":2.5,"step":0.05,"section":"Ball"},"manualDragInteraction":{"editor":"boolean","default":true,"section":"Ball"},"hangerShow":{"editor":"boolean","default":true,"section":"Ball"},"cableThickness":{"editor":"range","default":1,"min":1,"max":8,"step":0.1,"unit":"px","section":"Ball"},"cableBrightness":{"editor":"range","default":1.2,"min":0.2,"max":3,"step":0.05,"section":"Ball"},"facetSize":{"editor":"range","default":19,"min":14,"max":46,"step":1,"unit":"px","section":"Ball Surface"},"panelDepth":{"editor":"range","default":0,"min":0,"max":2.5,"step":0.05,"section":"Ball Surface"},"panelSeam":{"editor":"range","default":0,"min":0,"max":1.6,"step":0.05,"section":"Ball Surface"},"panelVariance":{"editor":"range","default":1.45,"min":0,"max":2.5,"step":0.05,"section":"Ball Surface"},"ballColor":{"editor":"color","default":"#50005a","section":"Ball Surface"},"ballBrightness":{"editor":"range","default":1.95,"min":0.15,"max":3,"step":0.05,"section":"Ball Surface"},"reflection":{"editor":"range","default":4,"min":0.2,"max":4,"step":0.05,"section":"Ball Surface"},"contrast":{"editor":"range","default":1.6,"min":0.6,"max":1.6,"step":0.02,"section":"Ball Surface"},"roomLight":{"editor":"range","default":14.4,"min":0.2,"max":26,"step":0.2,"section":"Ball Surface"},"rimColor":{"editor":"color","default":"#ff00cd","section":"Ball Surface"},"rimLight":{"editor":"range","default":2.3,"min":0,"max":4,"step":0.05,"section":"Ball Surface"},"partyIntensity":{"editor":"range","default":2.1,"min":0,"max":6,"step":0.05,"section":"Party"},"partySpeed":{"editor":"range","default":3,"min":0,"max":10,"step":0.05,"section":"Party"},"partyColorfulness":{"editor":"range","default":2.5,"min":0,"max":2.5,"step":0.05,"section":"Party"},"partyEnergy":{"editor":"range","default":3,"min":0,"max":3,"step":0.05,"section":"Party"},"partySize":{"editor":"range","default":0.5,"min":0.02,"max":0.5,"step":0.005,"section":"Party"},"beamLight":{"editor":"range","default":0,"min":0,"max":2,"step":0.05,"section":"Party"},"sweepIntensity":{"editor":"range","default":0,"min":0,"max":4,"step":0.05,"section":"Party"},"partyLightCount":{"editor":"int","default":0,"min":0,"max":5,"step":1,"section":"Party"},"sweepColor":{"editor":"color","default":"#37051f","section":"Party Colors"},"partyColor1":{"editor":"color","default":"#e11d48","section":"Party Colors"},"partyColor2":{"editor":"color","default":"#a21caf","section":"Party Colors"},"partyColor3":{"editor":"color","default":"#002489","section":"Party Colors"},"partyColor4":{"editor":"color","default":"#ffb100","section":"Party Colors"},"partyColor5":{"editor":"color","default":"#6d28d9","section":"Party Colors"},"bgColorIntensity":{"editor":"range","default":8,"min":0,"max":100,"step":1,"unit":"%","section":"Background"},"colorBlend":{"editor":"range","default":12,"min":0,"max":100,"step":1,"unit":"%","section":"Background"},"colorSpread":{"editor":"range","default":60,"min":0,"max":100,"step":1,"unit":"%","section":"Background"},"colorRichness":{"editor":"range","default":82,"min":0,"max":100,"step":1,"unit":"%","section":"Background"},"bgColorBalance":{"editor":"range","default":59,"min":0,"max":100,"step":1,"unit":"%","section":"Background"},"bgBrightness":{"editor":"range","default":42,"min":0,"max":100,"step":1,"unit":"%","section":"Background"},"bgContrast":{"editor":"range","default":19,"min":0,"max":100,"step":1,"unit":"%","section":"Background"},"$preview":{"width":1200,"height":900},"sparkleShow":{"editor":"boolean","default":true,"section":"Sparkles"},"sparkleIntensity":{"editor":"range","default":0.9,"min":0,"max":2.5,"step":0.05,"section":"Sparkles"},"sparkleSize":{"editor":"range","default":2.5,"min":0.3,"max":2.5,"step":0.05,"section":"Sparkles"},"sparkleSharpness":{"editor":"range","default":1,"min":0,"max":1.5,"step":0.05,"section":"Sparkles"},"sparklePresence":{"editor":"range","default":1,"min":0,"max":1,"step":0.05,"section":"Sparkles"},"sparkle1Show":{"editor":"boolean","default":true,"section":"Sparkle 1"},"sparkle1X":{"editor":"range","default":0.9,"min":-1,"max":1,"step":0.01,"section":"Sparkle 1"},"sparkle1Y":{"editor":"range","default":1,"min":-1,"max":1,"step":0.01,"section":"Sparkle 1"},"sparkle1Depth":{"editor":"range","default":0.36,"min":0,"max":1,"step":0.01,"section":"Sparkle 1"},"sparkle1Size":{"editor":"range","default":0.75,"min":0.2,"max":2.5,"step":0.05,"section":"Sparkle 1"},"sparkle1Intensity":{"editor":"range","default":1,"min":0,"max":2,"step":0.05,"section":"Sparkle 1"},"sparkle1Sharpness":{"editor":"range","default":0.4,"min":0,"max":1,"step":0.05,"section":"Sparkle 1"},"sparkle1Presence":{"editor":"range","default":0.7,"min":0,"max":1,"step":0.05,"section":"Sparkle 1"},"sparkle2Show":{"editor":"boolean","default":false,"section":"Sparkle 2"},"sparkle2X":{"editor":"range","default":0.55,"min":-1,"max":1,"step":0.01,"section":"Sparkle 2"},"sparkle2Y":{"editor":"range","default":0.18,"min":-1,"max":1,"step":0.01,"section":"Sparkle 2"},"sparkle2Depth":{"editor":"range","default":1,"min":0,"max":1,"step":0.01,"section":"Sparkle 2"},"sparkle2Size":{"editor":"range","default":0.75,"min":0.2,"max":2.5,"step":0.05,"section":"Sparkle 2"},"sparkle2Intensity":{"editor":"range","default":0.8,"min":0,"max":2,"step":0.05,"section":"Sparkle 2"},"sparkle2Sharpness":{"editor":"range","default":0.8,"min":0,"max":1,"step":0.05,"section":"Sparkle 2"},"sparkle2Presence":{"editor":"range","default":0.9,"min":0,"max":1,"step":0.05,"section":"Sparkle 2"},"sparkle3Show":{"editor":"boolean","default":true,"section":"Sparkle 3"},"sparkle3X":{"editor":"range","default":-1,"min":-1,"max":1,"step":0.01,"section":"Sparkle 3"},"sparkle3Y":{"editor":"range","default":-1,"min":-1,"max":1,"step":0.01,"section":"Sparkle 3"},"sparkle3Depth":{"editor":"range","default":0.28,"min":0,"max":1,"step":0.01,"section":"Sparkle 3"},"sparkle3Size":{"editor":"range","default":0.9,"min":0.2,"max":2.5,"step":0.05,"section":"Sparkle 3"},"sparkle3Intensity":{"editor":"range","default":0.7,"min":0,"max":2,"step":0.05,"section":"Sparkle 3"},"sparkle3Sharpness":{"editor":"range","default":0.7,"min":0,"max":1,"step":0.05,"section":"Sparkle 3"},"sparkle3Presence":{"editor":"range","default":0.85,"min":0,"max":1,"step":0.05,"section":"Sparkle 3"},"sparkle4Show":{"editor":"boolean","default":false,"section":"Sparkle 4"},"sparkle4X":{"editor":"range","default":0.93,"min":-1,"max":1,"step":0.01,"section":"Sparkle 4"},"sparkle4Y":{"editor":"range","default":-0.25,"min":-1,"max":1,"step":0.01,"section":"Sparkle 4"},"sparkle4Depth":{"editor":"range","default":0.27,"min":0,"max":1,"step":0.01,"section":"Sparkle 4"},"sparkle4Size":{"editor":"range","default":0.55,"min":0.2,"max":2.5,"step":0.05,"section":"Sparkle 4"},"sparkle4Intensity":{"editor":"range","default":0.75,"min":0,"max":2,"step":0.05,"section":"Sparkle 4"},"sparkle4Sharpness":{"editor":"range","default":0.85,"min":0,"max":1,"step":0.05,"section":"Sparkle 4"},"sparkle4Presence":{"editor":"range","default":0.9,"min":0,"max":1,"step":0.05,"section":"Sparkle 4"},"sparkle5Show":{"editor":"boolean","default":false,"section":"Sparkle 5"},"sparkle5X":{"editor":"range","default":-0.95,"min":-1,"max":1,"step":0.01,"section":"Sparkle 5"},"sparkle5Y":{"editor":"range","default":0.1,"min":-1,"max":1,"step":0.01,"section":"Sparkle 5"},"sparkle5Depth":{"editor":"range","default":0.28,"min":0,"max":1,"step":0.01,"section":"Sparkle 5"},"sparkle5Size":{"editor":"range","default":0.65,"min":0.2,"max":2.5,"step":0.05,"section":"Sparkle 5"},"sparkle5Intensity":{"editor":"range","default":0.6,"min":0,"max":2,"step":0.05,"section":"Sparkle 5"},"sparkle5Sharpness":{"editor":"range","default":0.8,"min":0,"max":1,"step":0.05,"section":"Sparkle 5"},"sparkle5Presence":{"editor":"range","default":0.85,"min":0,"max":1,"step":0.05,"section":"Sparkle 5"},"sparkle6Show":{"editor":"boolean","default":false,"section":"Sparkle 6"},"sparkle6X":{"editor":"range","default":-0.33,"min":-1,"max":1,"step":0.01,"section":"Sparkle 6"},"sparkle6Y":{"editor":"range","default":0.62,"min":-1,"max":1,"step":0.01,"section":"Sparkle 6"},"sparkle6Depth":{"editor":"range","default":0.7,"min":0,"max":1,"step":0.01,"section":"Sparkle 6"},"sparkle6Size":{"editor":"range","default":1.15,"min":0.2,"max":2.5,"step":0.05,"section":"Sparkle 6"},"sparkle6Intensity":{"editor":"range","default":0.9,"min":0,"max":2,"step":0.05,"section":"Sparkle 6"},"sparkle6Sharpness":{"editor":"range","default":0.7,"min":0,"max":1,"step":0.05,"section":"Sparkle 6"},"sparkle6Presence":{"editor":"range","default":0.9,"min":0,"max":1,"step":0.05,"section":"Sparkle 6"},"sparkle7Show":{"editor":"boolean","default":false,"section":"Sparkle 7"},"sparkle7X":{"editor":"range","default":-0.23,"min":-1,"max":1,"step":0.01,"section":"Sparkle 7"},"sparkle7Y":{"editor":"range","default":-0.22,"min":-1,"max":1,"step":0.01,"section":"Sparkle 7"},"sparkle7Depth":{"editor":"range","default":0.73,"min":0,"max":1,"step":0.01,"section":"Sparkle 7"},"sparkle7Size":{"editor":"range","default":0.5,"min":0.2,"max":2.5,"step":0.05,"section":"Sparkle 7"},"sparkle7Intensity":{"editor":"range","default":0.55,"min":0,"max":2,"step":0.05,"section":"Sparkle 7"},"sparkle7Sharpness":{"editor":"range","default":0.9,"min":0,"max":1,"step":0.05,"section":"Sparkle 7"},"sparkle7Presence":{"editor":"range","default":0.85,"min":0,"max":1,"step":0.05,"section":"Sparkle 7"},"sparkle8Show":{"editor":"boolean","default":false,"section":"Sparkle 8"},"sparkle8X":{"editor":"range","default":-1,"min":-1,"max":1,"step":0.01,"section":"Sparkle 8"},"sparkle8Y":{"editor":"range","default":-1,"min":-1,"max":1,"step":0.01,"section":"Sparkle 8"},"sparkle8Depth":{"editor":"range","default":0.88,"min":0,"max":1,"step":0.01,"section":"Sparkle 8"},"sparkle8Size":{"editor":"range","default":0.55,"min":0.2,"max":2.5,"step":0.05,"section":"Sparkle 8"},"sparkle8Intensity":{"editor":"range","default":0.8,"min":0,"max":2,"step":0.05,"section":"Sparkle 8"},"sparkle8Sharpness":{"editor":"range","default":0.75,"min":0,"max":1,"step":0.05,"section":"Sparkle 8"},"sparkle8Presence":{"editor":"range","default":0.9,"min":0,"max":1,"step":0.05,"section":"Sparkle 8"}};
+
+/* Minimal stand-in for the canvas runtime: the engine only needs `this.props`. */
+class DCLogic { constructor(props) { this.props = props || {}; } }
+
+/* ===== Ball engine — verbatim from Main.dc.html ===== */
+class Component extends DCLogic {
+
+  componentDidMount() {
+    if (!this.canvas && typeof document !== 'undefined') {
+      var el = document.querySelector('canvas[data-disco]');
+      if (el) { this.onCanvas(el); }
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
+    this.detach();
+  }
+
+  onCanvas(el) {
+    if (!el || el === this.canvas) { return; }
+    this.detach();
+    this.canvas = el;
+    this.ctx = el.getContext('2d');
+    if (this.yaw === undefined) {
+      this.yaw = 0.62;
+      this.yawVel = 0.1309;
+    }
+    // The rig: it holds the ball and the suspension, and only it tilts and sways.
+    // The ball inside it is the one thing that spins.
+    if (this.tiltX === undefined) {
+      this.tiltX = 0;
+      this.tiltTarget = 0;
+      this.roll = 0;
+      this.pitch = 0.11;
+    }
+    this.last = 0;
+    this.o1 = [0, 0, 0];
+    this.o2 = [0, 0, 0];
+    this.sp = [0, 0, 0, 0, 0, 0, 0, 0];
+    this.attach();
+    this.resize();
+    if (this.raf) { cancelAnimationFrame(this.raf); }
+    var self = this;
+    var step = function (t) {
+      self.raf = requestAnimationFrame(step);
+      self.tick(t);
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+
+  attach() {
+    var self = this;
+    var c = this.canvas;
+    if (!c) { return; }
+    this.hDown = function (e) {
+      if (!self.props || !self.props.manualDragInteraction) { return; }
+      self.dragging = true;
+      self.px = e.clientX;
+      self.py = e.clientY;
+      self.ax = 0;
+      self.ay = 0;
+      c.style.cursor = 'grabbing';
+      if (c.setPointerCapture && e.pointerId !== undefined) {
+        try { c.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      }
+    };
+    this.hMove = function (e) {
+      // The pointer's height over the scene sets where the rig would like to lean.
+      // It is only a target: the rig eases toward it, and never more than 0.175 rad.
+      if (self.props && self.props.manualDragInteraction && c.getBoundingClientRect) {
+        var r = c.getBoundingClientRect();
+        if (r.height > 0 && e.clientY > r.top && e.clientY < r.bottom) {
+          self.tiltTarget = ((e.clientY - r.top) / r.height - 0.5) * 0.35;
+        }
+      }
+      if (!self.dragging) { return; }
+      // Horizontal drag turns the ball, and only the ball.
+      var dx = e.clientX - self.px;
+      self.px = e.clientX;
+      self.py = e.clientY;
+      self.yaw += dx * 0.0052;
+      self.ax = self.ax * 0.7 + dx * 0.3;
+      if (e.cancelable) { e.preventDefault(); }
+    };
+    this.hUp = function () {
+      if (!self.dragging) { return; }
+      self.dragging = false;
+      c.style.cursor = 'grab';
+      self.yawVel = Math.max(-2.8, Math.min(2.8, self.ax * 0.31));
+    };
+    this.hResize = function () { self.resize(); };
+    c.addEventListener('pointerdown', this.hDown);
+    window.addEventListener('pointermove', this.hMove, { passive: false });
+    window.addEventListener('pointerup', this.hUp);
+    window.addEventListener('pointercancel', this.hUp);
+    window.addEventListener('resize', this.hResize);
+  }
+
+  detach() {
+    if (this.canvas && this.hDown) {
+      this.canvas.removeEventListener('pointerdown', this.hDown);
+    }
+    if (this.hMove) {
+      window.removeEventListener('pointermove', this.hMove);
+      window.removeEventListener('pointerup', this.hUp);
+      window.removeEventListener('pointercancel', this.hUp);
+      window.removeEventListener('resize', this.hResize);
+    }
+    this.hDown = null;
+    this.hMove = null;
+    this.hUp = null;
+    this.hResize = null;
+  }
+
+  resize() {
+    var c = this.canvas;
+    if (!c) { return; }
+    var w = c.clientWidth || 1200;
+    var h = c.clientHeight || 900;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.w = w;
+    this.h = h;
+    this.dpr = dpr;
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+  }
+
+  hex(h) {
+    if (typeof h !== 'string') { return [0, 0, 0]; }
+    var s = h.replace('#', '').replace(/\s/g, '');
+    if (s.length === 3) {
+      s = s.charAt(0) + s.charAt(0) + s.charAt(1) + s.charAt(1) + s.charAt(2) + s.charAt(2);
+    }
+    if (s.length === 8) { s = s.substring(0, 6); }
+    if (s.length !== 6) { return [0, 0, 0]; }
+    var n = parseInt(s, 16);
+    if (isNaN(n)) { return [0, 0, 0]; }
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  }
+
+  lin(h) {
+    if (!this.lc) { this.lc = {}; }
+    var c = this.lc[h];
+    if (c) { return c; }
+    var s = this.hex(h);
+    c = [Math.pow(s[0], 2.2), Math.pow(s[1], 2.2), Math.pow(s[2], 2.2)];
+    this.lc[h] = c;
+    return c;
+  }
+
+  tint(h) {
+    if (!this.tc) { this.tc = {}; }
+    var c = this.tc[h];
+    if (c) { return c; }
+    var s = this.hex(h);
+    var l = this.lin(h);
+    var mxs = Math.max(s[0], Math.max(s[1], s[2]));
+    var t = mxs / 0.10;
+    if (t > 1) { t = 1; } else if (t < 0) { t = 0; }
+    var mn = (l[0] + l[1] + l[2]) / 3;
+    if (mn < 0.00002) { mn = 0.00002; t = 0; }
+    var r0 = l[0] / mn, r1 = l[1] / mn, r2 = l[2] / mn;
+    r0 = 1 + (r0 - 1) * t;
+    r1 = 1 + (r1 - 1) * t;
+    r2 = 1 + (r2 - 1) * t;
+    c = [r0 * 1.0283, r1 * 1.0283, r2 * 1.0283];
+    this.tc[h] = c;
+    return c;
+  }
+
+  pcol(h) {
+    if (!this.pc) { this.pc = {}; }
+    var c = this.pc[h];
+    if (c) { return c; }
+    var s = this.hex(h);
+    var l = this.lin(h);
+    var mx = Math.max(l[0], Math.max(l[1], l[2]));
+    var ms = Math.max(s[0], Math.max(s[1], s[2]));
+    if (mx < 0.000001) { c = [0, 0, 0, 0]; }
+    else { c = [l[0] / mx, l[1] / mx, l[2] / mx, Math.pow(ms, 1.4)]; }
+    this.pc[h] = c;
+    return c;
+  }
+
+  rig(p) {
+    this.pchroma = 1;
+    this.pdeep = 1;
+    this.blend(p);
+    // The master turns the party up, so it scales the lamps themselves too — not just
+    // what the room does with them. The range here is deliberately modest: pushing it
+    // hard changes which mix the facets show (the tonemap compresses a bright lobe
+    // harder than a dim one), and that shifts the ball's own hue, which is not this
+    // control's business. Measured drift across the full drag is a couple of degrees.
+    // The room's share, scaled far harder, is what carries the sense of intensity.
+    var lampG = this.gain(2.2);
+    var pInt = (p.partyIntensity == null ? 0 : p.partyIntensity) * lampG;
+    var swInt = (p.sweepIntensity == null ? 0 : p.sweepIntensity) * lampG;
+    var envG = this.gain(2.4);
+    var out = this.plb || (this.plb = []);
+    out.length = 0;
+    if (pInt < 0.002 && swInt < 0.002) { return out; }
+    var cnt = p.partyLightCount == null ? 5 : Math.round(p.partyLightCount);
+    var size = p.partySize == null ? 0.085 : p.partySize;
+    var spread = p.partyEnergy == null ? 1 : p.partyEnergy;
+    this.pmove = Math.min(1.6, 0.45 + 0.38 * spread);
+    var ex = 2 / (size * size);
+    if (ex < 12) { ex = 12; } else if (ex > 4200) { ex = 4200; }
+    var ph = this.lph || [0, 0, 0, 0, 0, 0];
+    var wt = [1.0, 0.82, 0.95, 0.74, 0.9];
+    var be = [0.55, -0.30, 0.18, 0.72, -0.52];
+    var tl = [0.0, 0.35, -0.50, 0.20, 0.60];
+    var hx = [
+      p.partyColor1 == null ? '#E11D48' : p.partyColor1,
+      p.partyColor2 == null ? '#A21CAF' : p.partyColor2,
+      p.partyColor3 == null ? '#1D4ED8' : p.partyColor3,
+      p.partyColor4 == null ? '#0E9AA7' : p.partyColor4,
+      p.partyColor5 == null ? '#6D28D9' : p.partyColor5
+    ];
+    // Colourfulness. Below 1 it washes the lamps toward neutral. Above 1 the hue
+    // ratios are already clamped at full saturation, so pushing further there would
+    // do nothing — instead the surplus is handed to the room: `pchroma` scales how
+    // strongly surfaces answer the lights and `pdeep` how deep their colour reads.
+    // One control, meaningful across its whole range, and the hues stay the ones in
+    // the Party Colours section.
+    var cf = p.partyColorfulness == null ? 1 : p.partyColorfulness;
+    if (cf < 0) { cf = 0; }
+    var sat = cf < 1 ? cf : 1;
+    var over = cf > 1 ? cf - 1 : 0;
+    this.pchroma = (1 + 0.75 * over) * this.gain(1.5);
+    this.pdeep = (1 + 0.55 * (over > 1 ? 1 : over)) * this.gain(1.35);
+    var sa0 = function (v) {
+      var o = 1 + (v - 1) * sat;
+      return o < 0 ? 0 : (o > 1 ? 1 : o);
+    };
+    var i;
+    if (pInt >= 0.002) {
+      for (i = 0; i < cnt && i < 5; i++) {
+        var a = ph[i];
+        var e = be[i] * spread + (0.20 + 0.28 * (spread > 1 ? spread - 1 : 0))
+          * Math.sin(a * (0.47 + 0.55 * (spread > 1 ? spread - 1 : 0)) + i);
+        var ce = Math.cos(e);
+        var lx = Math.cos(a) * ce;
+        var ly = Math.sin(e);
+        var lz = Math.sin(a) * ce;
+        var ct = Math.cos(tl[i] * spread), st = Math.sin(tl[i] * spread);
+        var ly2 = ly * ct - lz * st;
+        var lz2 = ly * st + lz * ct;
+        var c = this.pcol(hx[i]);
+        if (c[3] < 0.0005) { continue; }
+        out.push([lx, ly2, lz2, sa0(c[0]), sa0(c[1]), sa0(c[2]), ex,
+          pInt * wt[i] * c[3] * 0.42, wt[i] * c[3] * envG, a]);
+      }
+    }
+    if (swInt >= 0.002) {
+      var sa = ph[5];
+      var se = 0.12 * Math.sin(sa * 0.31) * spread;
+      var sce = Math.cos(se);
+      var sc = this.pcol(p.sweepColor == null ? '#F0A24E' : p.sweepColor);
+      if (sc[3] >= 0.0005) {
+        var sex = ex * 0.42;
+        if (sex < 10) { sex = 10; }
+        out.push([Math.cos(sa) * sce, Math.sin(se), Math.sin(sa) * sce,
+          sa0(sc[0]), sa0(sc[1]), sa0(sc[2]), sex, swInt * sc[3] * 0.50, sc[3] * 1.15 * envG, sa]);
+      }
+    }
+    return out;
+  }
+
+  hwBand(cx, y0, y1, hw, py, ft, sharp, tilt) {
+    if (y1 <= y0 || hw <= 0.25) { return; }
+    var ctx = this.ctx;
+    var out = this.o2;
+    var n = Math.max(5, Math.round((hw * 2) / 1.6));
+    var step = (hw * 2) / n;
+    for (var i = 0; i < n; i++) {
+      var um = -1 + (2 * i + 1) / n;
+      var q = 1 - um * um;
+      var nz = Math.sqrt(q > 0.0001 ? q : 0.0001);
+      this.shadeF(um * 0.55, py, nz * 0.55, um, tilt, nz, ft, sharp, out);
+      ctx.fillStyle = 'rgb(' + out[0] + ',' + out[1] + ',' + out[2] + ')';
+      ctx.fillRect(cx - hw + i * step, y0, step + 0.7, y1 - y0);
+    }
+  }
+
+  hwCap(cx, cy, rx, ry, py, ft, sharp, ny) {
+    if (rx <= 0.4 || ry <= 0.2) { return; }
+    var ctx = this.ctx;
+    var out = this.o2;
+    var q = 1 - ny * ny;
+    var nz = Math.sqrt(q > 0.0001 ? q : 0.0001);
+    this.shadeF(0, py, nz * 0.5, 0, ny, nz, ft, sharp, out);
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgb(' + out[0] + ',' + out[1] + ',' + out[2] + ')';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Colour of light landing on a surface. `mix` is how much the surface washes it
+  // toward white — a bright studio wall does this, a dark gallery floor barely does.
+  // `deep` pulls the secondary channels down so a saturated lamp reads as deep red or
+  // rich violet rather than a pastel. Hue always comes from the live rig, never a palette.
+  softCol(L, mix, deep) {
+    var r = L[3], g = L[4], b = L[5];
+    if (deep) {
+      var e = 1 + deep;
+      r = Math.pow(r, e); g = Math.pow(g, e); b = Math.pow(b, e);
+    }
+    r += (1 - r) * mix; g += (1 - g) * mix; b += (1 - b) * mix;
+    return 'rgba(' + Math.round(r * 255) + ',' + Math.round(g * 255) + ','
+      + Math.round(b * 255) + ',';
+  }
+
+  // One lamp's spill on a surface. The stops trace 1/(1+(d/r)^2)^2 — inverse-square
+  // falloff with a soft core — so light concentrates near its source and the far side
+  // of the room stays dark. `rh` is the reach, where it has decayed to nothing.
+  lampPool(cx, cy, rw, rh, col, a, rot) {
+    if (a < 0.002 || rw < 1 || rh < 1) { return; }
+    // A hard ceiling discarded everything above it, so past a point extra energy
+    // stopped reading as extra colour. A soft knee keeps the response monotonic:
+    // more light always means more colour, it just gains ground more slowly.
+    a = 0.72 * (1 - Math.exp(-a / 0.46));
+    var ctx = this.poolCtx || this.ctx;
+    var s = this.poolS == null ? 1 : this.poolS;
+    var fo = this.fallFor(this.bgFall == null ? 1 : this.bgFall), i;
+    cx *= s; cy *= s; rw *= s; rh *= s;
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (rot) { ctx.rotate(rot); }
+    ctx.scale(rw / rh, 1);
+    var g = ctx.createRadialGradient(0, 0, 0, 0, 0, rh);
+    for (i = 0; i < fo.length; i++) {
+      g.addColorStop(fo[i][0], col + (a * fo[i][1]).toFixed(4) + ')');
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(-rh, -rh, rh * 2, rh * 2);
+    ctx.restore();
+  }
+
+  // The light's own falloff curve, with Background Contrast as a gamma on it. Above
+  // 1 the light drops away faster, so lit and unlit parts of the room separate and
+  // shadows deepen; below 1 it lingers, and the room lights more evenly. This is
+  // where contrast actually lives — steepening the base wall gradient alone barely
+  // moves a room whose brightness is mostly coming from the lamps. Cached per gamma.
+  fallFor(g) {
+    if (!this.fallBase) {
+      this.fallBase = [[0, 1], [0.10, 0.89], [0.20, 0.66], [0.30, 0.45],
+        [0.45, 0.21], [0.60, 0.095], [0.75, 0.038], [0.88, 0.011], [1, 0]];
+    }
+    if (!(g > 0.05)) { g = 1; }
+    if (g === 1) { return this.fallBase; }
+    if (!this.fallCache) { this.fallCache = {}; }
+    var key = g.toFixed(3);
+    if (this.fallCache[key]) { return this.fallCache[key]; }
+    var b = this.fallBase, out = [];
+    for (var i = 0; i < b.length; i++) { out.push([b[i][0], Math.pow(b[i][1], g)]); }
+    this.fallCache[key] = out;
+    return out;
+  }
+
+  // One lamp's light on a surface is not a single disc. There is the concentrated
+  // patch where it lands, and around it the much broader, weaker field left by the
+  // glass scattering it and the room bouncing it. Drawing all three is what makes
+  // neighbouring lamps merge into continuous transitions instead of sitting on the
+  // wall as separate coloured blobs — the wide components overlap long before the
+  // cores do. Each lobe is offset along the lamp's own direction, so the cluster
+  // leans the way the light travels and moves only when the rig moves.
+  lampField(cx, cy, rw, rh, col, a, dx, dy, ph, gal) {
+    if (!this.lobes) {
+      // radius, strength, how far along the lamp's direction the lobe sits
+      this.lobes = [[0.66, 1.00, 0.00], [1.12, 0.40, 0.20], [1.70, 0.13, 0.46]];
+    }
+    var lo = this.lobes;
+    // Colour Blend: how much of a field's energy sits in its wide outer lobes, which
+    // is what makes neighbouring colours merge rather than stay as separate pools.
+    var bl = this.bgBlend == null ? 1 : this.bgBlend;
+    // How alive the fields are. `ph` is the lamp's OWN phase from the rig, so this
+    // motion is the party's motion: Party Speed sets its rate and Party Energy its
+    // amplitude, and there is no second clock anywhere in the scene. It falls to zero
+    // at the studio end, where the room should be still.
+    var amp = 0.26 * gal * (this.pmove == null ? 1 : this.pmove);
+    for (var i = 0; i < lo.length; i++) {
+      var r = lo[i][0], k = lo[i][1], off = lo[i][2];
+      if (i > 0) { k *= bl; r *= 1 + 0.30 * (bl - 1); }
+      var px = cx + dx * rw * off, py = cy + dy * rh * off;
+      var rwi = rw * r, rhi = rh * r, rot = 0;
+      if (amp > 0.002 && ph != null) {
+        var aa = ph + i * 1.9;
+        // Three incommensurate sinusoids per axis: the field wanders on a path that
+        // never repeats, so the room never looks like it is looping.
+        var wx = (Math.sin(aa) + 0.5 * Math.sin(2.3 * aa + 1.7) + 0.3 * Math.sin(4.1 * aa + 0.4)) / 1.8;
+        var wy = (Math.cos(1.13 * aa) + 0.5 * Math.cos(2.7 * aa + 0.9) + 0.3 * Math.cos(3.7 * aa + 2.2)) / 1.8;
+        px += wx * rwi * amp;
+        py += wy * rhi * amp;
+        // Slow turn, and a breathing aspect: the patch of light stretches and rounds
+        // off again as the beam's angle onto the surface changes.
+        rot = aa * 0.23 + i * 0.8;
+        rwi *= 1 + (0.18 + 0.42 * gal) * (0.5 + 0.5 * Math.sin(aa * 0.7 + i));
+      }
+      this.lampPool(px, py, rwi, rhi, col, a * k, rot);
+    }
+  }
+
+  // Colour is accumulated at a quarter resolution and blitted up. The downscale is
+  // what dissolves the seams between fields: at full resolution each gradient keeps
+  // its own edge, and the wall reads as a set of discs rather than as light.
+  envBuf(W, H) {
+    if (typeof document === 'undefined') { return null; }
+    var s = 0.25;
+    var w = Math.max(2, Math.round(W * s)), h = Math.max(2, Math.round(H * s));
+    if (!this.eb) { this.eb = { el: document.createElement('canvas') }; }
+    var b = this.eb;
+    if (b.w !== w || b.h !== h) {
+      b.el.width = w; b.el.height = h; b.w = w; b.h = h; b.s = s;
+      b.ctx = b.el.getContext('2d');
+    }
+    return b.ctx ? b : null;
+  }
+
+  mottle(key) {
+    if (!this.mt) { this.mt = {}; }
+    var c = this.mt[key];
+    if (c) { return c; }
+    if (typeof document === 'undefined') { return null; }
+    var n = 128;
+    c = document.createElement('canvas');
+    c.width = n;
+    c.height = n;
+    var g = c.getContext('2d');
+    if (!g) { return null; }
+    var seed = key === 'wall' ? 7717 : 3391;
+    var rnd = function () {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    var cnt = key === 'wall' ? 30 : 44;
+    for (var i = 0; i < cnt; i++) {
+      var x = rnd() * n, y = rnd() * n;
+      var r = n * (0.09 + rnd() * 0.30);
+      var a = 0.04 + rnd() * 0.09;
+      var lite = rnd() > 0.5;
+      var gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, (lite ? 'rgba(255,255,255,' : 'rgba(0,0,0,') + a.toFixed(3) + ')');
+      gr.addColorStop(1, lite ? 'rgba(255,255,255,0)' : 'rgba(0,0,0,0)');
+      g.fillStyle = gr;
+      g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    this.mt[key] = c;
+    return c;
+  }
+
+  // The two ends of the Studio <-> Gallery drag. They are constants, not controls,
+  // because the slider's whole job is to sit between them: a duplicate pair of
+  // per-mode sliders is what this phase removes.
+  get EB() { return 1.25; }        // studio exposure
+  get GB() { return 0.55; }        // gallery exposure
+  get EWT() { return '#ffffff'; }  // studio wall
+  get GWT() { return '#14151C'; }  // gallery wall
+  get EFT() { return '#ffffff'; }  // studio floor
+  get GFT() { return '#1A1B21'; }  // gallery floor
+
+  // Where the drag currently sits, 0 = studio, 1 = gallery. Everything that used to
+  // branch on a mode now reads this, so there is exactly one source of the blend.
+  // Party Environment: the one environmental axis. 0 is the calmest, brightest,
+  // most neutral studio; 1 is the darkest, richest, most energetic gallery. Every
+  // environmental system reads this — it is the position itself, not a preset pair.
+  blend(p) {
+    var v = p.partyEnvironment == null ? 25 : p.partyEnvironment;
+    v = v / 100;
+    if (!(v >= 0)) { v = 0; } else if (v > 1) { v = 1; }
+    this.gal = v;
+    return v;
+  }
+
+  // ...and the gain it applies to the party system. The individual party sliders stay
+  // the underlying tuning; this only scales what those settings do at runtime, so
+  // dragging the master never rewrites a tweak value. It runs from a division by `hi`
+  // at the calm end, through exactly 1 at the middle of the travel, to a multiplication
+  // by `hi` at the party end — geometric, so there is no kink anywhere along the drag.
+  // It never reaches zero, which is the point for anything that lights the BALL: the
+  // ball's own colour is not this control's business and must survive the calm end.
+  gain(hi) {
+    var m = this.gal == null ? 0.25 : this.gal;
+    return Math.pow(hi, 2 * m - 1);
+  }
+
+  // A 0-100 fine-tuning control read as a multiplier: 1/hi at 0, exactly 1 at 50,
+  // hi at 100. Centring at 50 means every one of these starts with no effect, so the
+  // scene you already have is the scene you keep until you move something.
+  bgk(p, key, hi) {
+    var v = p[key];
+    if (v == null) { v = 50; }
+    v = v / 50 - 1;
+    if (!(v >= -1)) { v = -1; } else if (v > 1) { v = 1; }
+    return Math.pow(hi, v);
+  }
+
+  // Background Colour Balance, per lamp. A lamp's own red-minus-blue decides which
+  // side of the balance it sits on, so turning the control warm simply gives the warm
+  // lamps already in the rig more of the room. No palette is invented, and at the
+  // centre every lamp is weighted exactly as before.
+  warmK(L, k) {
+    if (k === 1) { return 1; }
+    var warm = (L[3] - L[5] + 1) * 0.5;
+    if (warm < 0) { warm = 0; } else if (warm > 1) { warm = 1; }
+    return Math.pow(k, (warm - 0.5) * 2);
+  }
+
+  mixHex(a, b, t) {
+    var x = this.hex(a), y = this.hex(b);
+    return [x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t];
+  }
+
+  stop(srgb, b) {
+    var out = '#';
+    for (var i = 0; i < 3; i++) {
+      var lv = Math.pow(srgb[i] < 0 ? 0 : srgb[i], 2.2) * b;
+      if (lv < 0) { lv = 0; } else if (lv > 1) { lv = 1; }
+      var v = Math.round(Math.pow(lv, 0.4545) * 255);
+      out += (v < 16 ? '0' : '') + v.toString(16);
+    }
+    return out;
+  }
+
+  buildFacets(ts, v, th) {
+    var seed = 20260918;
+    var rnd = function () {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    var sph = function (la, lo) {
+      var cl = Math.cos(la);
+      return [cl * Math.sin(lo), Math.sin(la), cl * Math.cos(lo)];
+    };
+    var warp = 0.18;
+    var band = function (u) {
+      return -Math.PI / 2 + Math.PI * (u - warp * Math.sin(2 * Math.PI * u) / (2 * Math.PI));
+    };
+    var rows = Math.max(10, Math.round(Math.PI * (1 + warp) / ts));
+    var neq = Math.max(8, Math.round((Math.PI * 2) / ts));
+    var beta = 0.733;
+    var out = [];
+    for (var i = 0; i < rows; i++) {
+      var la0 = band(i / rows);
+      var la1 = band((i + 1) / rows);
+      var lam = (la0 + la1) * 0.5;
+      var cl = Math.cos(lam);
+      if (cl < 0.001) { cl = 0.001; }
+      var cols = Math.max(6, Math.round(neq * Math.pow(cl, 0.78)));
+      var span = (Math.PI * 2) / cols;
+      var phase = rnd() * span;
+      var dh = la1 - la0;
+      for (var j = 0; j < cols; j++) {
+        var lo0 = phase + j * span;
+        var lo1 = phase + (j + 1) * span;
+        var gap = 0.006 + rnd() * 0.006;
+        var a0 = la0 + dh * gap, a1 = la1 - dh * gap;
+        var b0 = lo0 + span * gap, b1 = lo1 - span * gap;
+        var wob = 0.010;
+        var q = [
+          sph(a0 + (rnd() - 0.5) * dh * wob, b0 + (rnd() - 0.5) * span * wob),
+          sph(a0 + (rnd() - 0.5) * dh * wob, b1 + (rnd() - 0.5) * span * wob),
+          sph(a1 + (rnd() - 0.5) * dh * wob, b1 + (rnd() - 0.5) * span * wob),
+          sph(a1 + (rnd() - 0.5) * dh * wob, b0 + (rnd() - 0.5) * span * wob)
+        ];
+        var sx = 0, sy = 0, sz = 0;
+        var k;
+        for (k = 0; k < 4; k++) {
+          sx += q[k][0]; sy += q[k][1]; sz += q[k][2];
+        }
+        var sl = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+        var gnx = sx / sl, gny = sy / sl, gnz = sz / sl;
+        var lift = 1 + th * (0.8 + rnd() * 0.4) * (1 + (rnd() - 0.5) * 0.5 * v);
+        for (k = 0; k < 4; k++) {
+          var dd = q[k][0] * gnx + q[k][1] * gny + q[k][2] * gnz;
+          var kk = dd > 0.3 ? lift / dd : lift;
+          q[k][0] *= kk; q[k][1] *= kk; q[k][2] *= kk;
+        }
+        var ux = 0, uy = 1, uz = 0;
+        if (gny > 0.9 || gny < -0.9) { ux = 1; uy = 0; }
+        var t1x = uy * gnz - uz * gny;
+        var t1y = uz * gnx - ux * gnz;
+        var t1z = ux * gny - uy * gnx;
+        var t1l = Math.sqrt(t1x * t1x + t1y * t1y + t1z * t1z) || 1;
+        t1x /= t1l; t1y /= t1l; t1z /= t1l;
+        var t2x = gny * t1z - gnz * t1y;
+        var t2y = gnz * t1x - gnx * t1z;
+        var t2z = gnx * t1y - gny * t1x;
+        var tilt = 0.0165 * Math.pow(rnd(), 1.7) * v;
+        var phi = rnd() * Math.PI * 2;
+        var ta = Math.cos(phi) * tilt, tb = Math.sin(phi) * tilt;
+        var nx = gnx + t1x * ta + t2x * tb;
+        var ny = gny + t1y * ta + t2y * tb;
+        var nz = gnz + t1z * ta + t2z * tb;
+        var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+        nx /= nl; ny /= nl; nz /= nl;
+        var cbx = (q[0][0] + q[1][0] + q[2][0] + q[3][0]) * 0.25;
+        var cby = (q[0][1] + q[1][1] + q[2][1] + q[3][1]) * 0.25;
+        var cbz = (q[0][2] + q[1][2] + q[2][2] + q[3][2]) * 0.25;
+        var bev = beta * (1 + (rnd() - 0.5) * 0.30 * v);
+        var cbv = Math.cos(bev), sbv = Math.sin(bev);
+        var bn = [];
+        for (k = 0; k < 4; k++) {
+          var k1 = (k + 1) & 3;
+          var mx = (q[k][0] + q[k1][0]) * 0.5 - cbx;
+          var my = (q[k][1] + q[k1][1]) * 0.5 - cby;
+          var mz = (q[k][2] + q[k1][2]) * 0.5 - cbz;
+          var pd = mx * gnx + my * gny + mz * gnz;
+          mx -= gnx * pd; my -= gny * pd; mz -= gnz * pd;
+          var ml = Math.sqrt(mx * mx + my * my + mz * mz);
+          if (ml < 1e-7) { bn.push(null); continue; }
+          mx /= ml; my /= ml; mz /= ml;
+          var ex = nx * cbv + mx * sbv;
+          var ey = ny * cbv + my * sbv;
+          var ez = nz * cbv + mz * sbv;
+          var el = Math.sqrt(ex * ex + ey * ey + ez * ez) || 1;
+          bn.push([ex / el, ey / el, ez / el]);
+        }
+        var pol = 1 + (rnd() - 0.5) * 0.44 * v;
+        if (rnd() < 0.06 && v > 0) { pol *= 1 - 0.38 * Math.min(1, v); }
+        if (pol < 0.25) { pol = 0.25; }
+        var bwv = 1 + (rnd() - 0.5) * 0.40 * v;
+        if (bwv < 0.4) { bwv = 0.4; }
+        var rgh = 0.10 * (1 + (rnd() - 0.5) * 0.9 * v);
+        if (rgh < 0.02) { rgh = 0.02; } else if (rgh > 0.4) { rgh = 0.4; }
+        out.push({
+          q: q,
+          bn: bn,
+          cx: gnx, cy: gny, cz: gnz,
+          nx: nx, ny: ny, nz: nz,
+          j: 1 + (rnd() - 0.5) * 0.32 * v,
+          g: pol,
+          sp: 1 + (rnd() - 0.5) * 0.26 * v,
+          fz: 1 + (rnd() - 0.5) * 0.12 * v,
+          tr: 1 + (rnd() - 0.5) * 0.026 * v,
+          tg: 1 + (rnd() - 0.5) * 0.026 * v,
+          tb: 1 + (rnd() - 0.5) * 0.026 * v,
+          bw: bwv,
+          rg: rgh,
+          sm: 1 + (rnd() - 0.5) * 0.30 * v
+        });
+      }
+    }
+    return out;
+  }
+
+  shadeF(px, py, pz, nx, ny, nz, ft, sharp, out) {
+    var d = this.sd;
+    var vx = -px, vy = -py, vz = d - pz;
+    var vl = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+    vx /= vl; vy /= vl; vz /= vl;
+    var ndv = nx * vx + ny * vy + nz * vz;
+    if (ndv < 0.005) { ndv = 0.005; }
+
+    var rx = 2 * ndv * nx - vx;
+    var ry = 2 * ndv * ny - vy;
+    var rz = 2 * ndv * nz - vz;
+
+    var env;
+    if (ry > 0) { env = 0.0095 + 0.047 * Math.pow(ry, 1.8); }
+    else { env = 0.0038 + 0.0085 * (1 + ry); }
+    var hb = ry / 0.13;
+    env += 0.012 * Math.exp(-hb * hb);
+    env *= 0.80 + 0.34 * (0.5 + 0.5 * (rx * 0.55 + rz * 0.62));
+    var sbd = rx * -0.4529 + ry * 0.5661 + rz * 0.6887;
+    if (sbd > 0) { env += 0.024 * Math.pow(sbd, 6); }
+    var ck = this.chromeK || 0, tj = 1;
+    if (ck > 0) {
+      // A room is not an even glow: dark walls and ceiling, a few bright things. Each
+      // tile mirrors a different part of it, so neighbours differ strongly, and as
+      // the ball turns each tile sweeps across that structure. Fixed to the room
+      // (it reads the reflected direction), so it moves with the reflections, not
+      // with the ball. Mostly dark, with lit patches.
+      var rt = (Math.sin(21.3 * (rx * 0.62 + ry * 0.21 - rz * 0.75) + 1.3)
+        + Math.sin(17.1 * (-rx * 0.48 + ry * 0.77 + rz * 0.42) + 0.4)
+        + Math.sin(13.7 * (rx * 0.31 - ry * 0.55 + rz * 0.77) + 2.1)
+        + 0.8 * Math.sin(4.9 * (rx * 0.80 + ry * 0.45 + rz * 0.39) + 0.7)) / 3.8;
+      var tt = (rt + 0.2) / 1.1;
+      if (tt < 0) { tt = 0; } else if (tt > 1) { tt = 1; }
+      tt = tt * tt * (3 - 2 * tt);
+      // and every tile sits a touch differently in its bed: wider tile-to-tile spread
+      tj = 1 + ((ft.j == null ? 1 : ft.j) - 1) * 2.2;
+      // the darkest parts of a bright studio are not as dark as a club's
+      var fl = 0.12 + 0.22 * (1 - (this.gal == null ? 0 : this.gal));
+      env *= 1 + ck * ((fl + 1.75 * tt * tt) * tj - 1);
+    }
+    env *= this.srl;
+
+    var f0 = 0.40 * ft.fz;
+    if (f0 > 0.85) { f0 = 0.85; } else if (f0 < 0.05) { f0 = 0.05; }
+    var F = f0 + (1 - f0) * Math.pow(1 - ndv, 4.5);
+    var kf = (0.30 + 0.70 * F) * ft.j;
+    var mat = this.smat;
+    var cr = env * mat[0] * kf * ft.tr;
+    var cg = env * mat[1] * kf * ft.tg;
+    var cb = env * mat[2] * kf * ft.tb;
+
+    var hx = -0.4529 + vx, hy = 0.5661 + vy, hz = 0.6887 + vz;
+    var hl = Math.sqrt(hx * hx + hy * hy + hz * hz) || 1;
+    var nh = (nx * hx + ny * hy + nz * hz) / hl;
+    if (nh < 0) { nh = 0; }
+    var ex = (660 * ft.g * sharp + 34 * (1 - sharp)) * (1 + 0.9 * ck);
+    var s1 = (Math.pow(nh, ex) * (0.30 + sharp) * (1 + 1.4 * ck) + Math.pow(nh, 26) * 0.028 * (1 - 0.6 * ck)) * F * this.srefl * ft.sp;
+    cr += s1;
+    cg += s1 * 0.972;
+    cb += s1 * 0.925;
+
+    var pls = this.pl;
+    if (pls) {
+      for (var q = 0; q < pls.length; q++) {
+        var L = pls[q];
+        var qx = L[0] + vx, qy = L[1] + vy, qz = L[2] + vz;
+        var ql = Math.sqrt(qx * qx + qy * qy + qz * qz) || 1;
+        var nq = (nx * qx + ny * qy + nz * qz) / ql;
+        if (nq <= 0) { continue; }
+        var amp = L[7] * (1 + 0.25 * ck);
+        var exq = (L[6] * sharp + 26 * (1 - sharp)) * (1 + 2.2 * ck);
+        var sq = Math.pow(nq, 9) * amp * 0.035;
+        var cut = 1 - 7 / exq;
+        if (nq > cut) { sq += Math.pow(nq, exq) * amp; }
+        sq *= F * (this.pscale == null ? 1 : this.pscale) * (1 + ck * 0.8 * (tj - 1));
+        cr += sq * L[3];
+        cg += sq * L[4];
+        cb += sq * L[5];
+      }
+    }
+
+    var expo = this.sexpo;
+    cr *= expo; cg *= expo; cb *= expo;
+
+    var nl2 = nx * 0.9128 + ny * 0.2282 + nz * -0.3373;
+    if (nl2 < 0) { nl2 = 0; }
+    var gx = 0.9128 + vx, gy = 0.2282 + vy, gz = -0.3373 + vz;
+    var gl = Math.sqrt(gx * gx + gy * gy + gz * gz) || 1;
+    var nh2 = (nx * gx + ny * gy + nz * gz) / gl;
+    if (nh2 < 0) { nh2 = 0; }
+    var ex2 = 880 * ft.g * sharp + 44 * (1 - sharp);
+    var gold = (Math.pow(1 - ndv, 3.6) * Math.pow(nl2, 1.5) * 0.26
+      + Math.pow(nh2, ex2) * (0.14 + 0.36 * sharp) * F) * this.srim;
+    var rimC = this.srimc;
+    cr += gold * rimC[0];
+    cg += gold * rimC[1];
+    cb += gold * rimC[2];
+
+    cr = cr / (1 + cr * 0.85);
+    cg = cg / (1 + cg * 0.85);
+    cb = cb / (1 + cb * 0.85);
+
+    var ct = this.sct;
+    var o0 = 0.14 + (Math.pow(cr < 0 ? 0 : cr, 0.4545) - 0.14) * ct;
+    var o1 = 0.14 + (Math.pow(cg < 0 ? 0 : cg, 0.4545) - 0.14) * ct;
+    var o2 = 0.14 + (Math.pow(cb < 0 ? 0 : cb, 0.4545) - 0.14) * ct;
+    if (o0 < 0) { o0 = 0; } else if (o0 > 1) { o0 = 1; }
+    if (o1 < 0) { o1 = 0; } else if (o1 > 1) { o1 = 1; }
+    if (o2 < 0) { o2 = 0; } else if (o2 > 1) { o2 = 1; }
+    out[0] = (o0 * 255) | 0;
+    out[1] = (o1 * 255) | 0;
+    out[2] = (o2 * 255) | 0;
+  }
+
+  tick(t) {
+    var dt = this.last ? Math.min(0.05, (t - this.last) / 1000) : 0.016;
+    this.last = t;
+    this.fdt = dt;
+    var p = this.props || {};
+    var auto = (p.spinSpeed == null ? 1 : p.spinSpeed) * 0.1309;
+    var manual = !!p.manualDragInteraction;
+    if (!manual && this.dragging) { this.dragging = false; }
+    if (this.dragging) {
+      this.yawVel = auto;
+    } else {
+      var k = 1 - Math.exp(-dt / 1.9);
+      this.yawVel += (auto - this.yawVel) * k;
+      this.yaw += this.yawVel * dt;
+    }
+    // The rig. A resting lean, an eased response to the pointer, and a very slow,
+    // very small sway about the line of sight. The ball's centre is the rig's
+    // origin, so none of this moves the ball in the frame; it only turns the axis
+    // the ball hangs on, and the suspension with it.
+    if (!manual) { this.tiltTarget = 0; }
+    this.tiltX += (this.tiltTarget - this.tiltX) * Math.min(1, dt * 3);
+    this.pitch = 0.11 + this.tiltX;
+    this.roll = Math.sin(t / 2600) * 0.02;
+    if (this.yaw > 1e6 || this.yaw < -1e6) { this.yaw = this.yaw % (Math.PI * 2); }
+    if (!this.lph) { this.lph = [0.4, 1.9, 3.3, 5.0, 2.4, 0.9]; }
+    var pspd = p.partySpeed == null ? 1 : p.partySpeed;
+    var rt = [0.115, -0.082, 0.143, -0.061, 0.098, 0.043];
+    for (var q = 0; q < 6; q++) {
+      this.lph[q] += dt * pspd * rt[q];
+      if (this.lph[q] > 1e6 || this.lph[q] < -1e6) { this.lph[q] = this.lph[q] % (Math.PI * 2); }
+    }
+    this.draw();
+  }
+
+  draw() {
+    var ctx = this.ctx;
+    if (!ctx) { return; }
+    var p = this.props || {};
+    var facetSize = p.facetSize == null ? 26 : p.facetSize;
+
+    var seamAmt = p.panelSeam == null ? 1 : p.panelSeam;
+    var varAmt = p.panelVariance == null ? 1 : p.panelVariance;
+    var depth = p.panelDepth == null ? 1 : p.panelDepth;
+    this.srefl = p.reflection == null ? 1 : p.reflection;
+    this.srim = p.rimLight == null ? 1 : p.rimLight;
+    this.sct = p.contrast == null ? 1 : p.contrast;
+    this.sexpo = p.ballBrightness == null ? 1 : p.ballBrightness;
+    this.srl = p.roomLight == null ? 1 : p.roomLight;
+    this.pscale = 1;
+    if (this.canvas && !this.dragging) {
+      var cur = p.manualDragInteraction ? 'grab' : 'default';
+      if (this.canvas.style.cursor !== cur) { this.canvas.style.cursor = cur; }
+    }
+    this.smat = this.tint(p.ballColor == null ? '#EAEEFF' : p.ballColor);
+    // Every ball colour is rendered as polished dark chrome: deep reflections of the
+    // dark room, strong tile-to-tile variation and hot, crisp highlights. The colour
+    // tints the mirror; it does not flatten it.
+    this.chromeK = 1;
+    this.srimc = this.lin(p.rimColor == null ? '#FFD290' : p.rimColor);
+    this.pl = this.rig(p);
+
+    var W = this.w, H = this.h, dpr = this.dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+
+    var R0 = Math.min(W, H) * 0.335;
+    var ts = Math.max(0.018, facetSize / R0);
+    var th = 0.0075 * depth;
+    var key = ts.toFixed(4) + '|' + varAmt.toFixed(2) + '|' + th.toFixed(5);
+    if (this.fkey !== key) {
+      this.facets = this.buildFacets(ts, varAmt, th);
+      this.fkey = key;
+    }
+
+    var focal = p.cameraFocal == null ? 1.15 : p.cameraFocal;
+    var hs = p.ballScale == null ? 1 : p.ballScale;
+    if (hs < 0.2) { hs = 0.2; }
+    var bd = p.ballDepth == null ? 2.75 : p.ballDepth;
+    if (bd < 0.8) { bd = 0.8; }
+    var bdk = bd / 2.75;
+    var d = (4.4 * bd) / hs;
+    var f = 4.4 * R0 * focal * Math.pow(bdk, 0.72);
+    var hx0 = p.ballX == null ? 0 : p.ballX;
+    var hy0 = p.ballY == null ? -0.05 : p.ballY;
+    var narrow = W / H < 0.9;
+    if (narrow) {
+      hx0 *= 0.35;
+      hy0 -= 0.08;
+      d *= Math.min(W, H) < 560 ? 0.70 : 0.88;
+    }
+    var vpY0 = H * (p.cameraHeight == null ? 0.55 : p.cameraHeight);
+    var conv = 1 / (0.45 + 0.55 * bdk);
+    var ox = W * 0.5 + W * hx0 * conv;
+    var oy = vpY0 + (H * (0.5 + hy0) - vpY0) * conv;
+    this.sd = d;
+    this.sf = f;
+
+    var rb = 1 + th;
+    this.srb = rb;
+    var sil = f * rb / Math.sqrt(d * d - rb * rb);
+    this.env(p, W, H, ox, oy, sil);
+    this.hanger(p, W, H, ox, oy, sil, false);
+    var rlq = Math.sqrt(this.srl);
+    var wf = 0.14 + 0.05 * (rlq - 1);
+    if (wf > 0.34) { wf = 0.34; } else if (wf < 0.14) { wf = 0.14; }
+    var bd1 = Math.round(12 * rlq);
+    if (bd1 > 74) { bd1 = 74; }
+    var bd2 = Math.round(6 * rlq);
+    if (bd2 > 54) { bd2 = 54; }
+    var body = ctx.createRadialGradient(ox - sil * 0.25, oy - sil * 0.3, sil * 0.1, ox, oy, sil);
+    body.addColorStop(0, 'rgb(' + bd1 + ',' + bd1 + ',' + (bd1 + 1) + ')');
+    body.addColorStop(1, 'rgb(' + bd2 + ',' + bd2 + ',' + (bd2 + 1) + ')');
+    ctx.beginPath();
+    ctx.arc(ox, oy, sil, 0, Math.PI * 2);
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    var yaw = this.yaw, pitch = this.pitch, roll = this.roll || 0;
+    var cyw = Math.cos(yaw), syw = Math.sin(yaw);
+    var crl = Math.cos(roll), srl = Math.sin(roll);
+    var cpp = Math.cos(pitch), spp = Math.sin(pitch);
+
+    var fs = this.facets;
+    var fc = this.o1, bc = this.o2, sp = this.sp;
+    var bevBase = 0.95 * (0.35 + 0.65 * depth);
+    var occBase = 0.22 + 0.42 * seamAmt;
+
+    var sts = this.starSetup(p, ox, oy, sil, d, rb, f, ts);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(ox, oy, sil, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    for (var i = 0; i < fs.length; i++) {
+      var ft = fs[i];
+      var k, ax, ay, az, az0, ay0, s;
+
+      // ball spin (y), then the rig: sway (z), then lean (x)
+      var cx1 = ft.cx * cyw + ft.cz * syw;
+      var cz0 = -ft.cx * syw + ft.cz * cyw;
+      var ccx = cx1 * crl - ft.cy * srl;
+      var cy1 = cx1 * srl + ft.cy * crl;
+      var ccy = cy1 * cpp - cz0 * spp;
+      var ccz = cy1 * spp + cz0 * cpp;
+
+      var wx = -ccx, wy = -ccy, wz = d - ccz;
+      var wl = Math.sqrt(wx * wx + wy * wy + wz * wz) || 1;
+      if ((ccx * wx + ccy * wy + ccz * wz) / wl <= 0.02) { continue; }
+
+      var fx1 = ft.nx * cyw + ft.nz * syw;
+      var fz0 = -ft.nx * syw + ft.nz * cyw;
+      var fnx = fx1 * crl - ft.ny * srl;
+      var fy1 = fx1 * srl + ft.ny * crl;
+      var fny = fy1 * cpp - fz0 * spp;
+      var fnz = fy1 * spp + fz0 * cpp;
+
+      var mx = 0, my = 0, pxs = 0, pys = 0, pzs = 0;
+      for (k = 0; k < 4; k++) {
+        var qq = ft.q[k];
+        var ax1 = qq[0] * cyw + qq[2] * syw;
+        az0 = -qq[0] * syw + qq[2] * cyw;
+        ax = ax1 * crl - qq[1] * srl;
+        ay0 = ax1 * srl + qq[1] * crl;
+        ay = ay0 * cpp - az0 * spp;
+        az = ay0 * spp + az0 * cpp;
+        s = f / (d - az);
+        sp[k * 2] = ox + ax * s;
+        sp[k * 2 + 1] = oy - ay * s;
+        pxs += ax; pys += ay; pzs += az;
+        mx += sp[k * 2];
+        my += sp[k * 2 + 1];
+      }
+      mx *= 0.25; my *= 0.25;
+
+      this.shadeF(ccx, ccy, ccz, fnx, fny, fnz, ft, 1, fc);
+      var fr = fc[0], fg = fc[1], fb = fc[2];
+
+      ctx.beginPath();
+      ctx.moveTo(sp[0], sp[1]);
+      ctx.lineTo(sp[2], sp[3]);
+      ctx.lineTo(sp[4], sp[5]);
+      ctx.lineTo(sp[6], sp[7]);
+      ctx.closePath();
+      ctx.fillStyle = 'rgb(' + fr + ',' + fg + ',' + fb + ')';
+      ctx.fill();
+
+      var sdx = fnx, sdy = -fny;
+      var sdl = Math.sqrt(sdx * sdx + sdy * sdy);
+      var thPx = th * (f / (d - ccz));
+      if (sdl > 1e-6) { sdx /= sdl; sdy /= sdl; } else { sdx = 0; sdy = 0; }
+      var wallPx = thPx * sdl;
+      var wr = (fr * wf) | 0, wg = (fg * wf) | 0, wb = (fb * wf) | 0;
+
+      for (k = 0; k < 4; k++) {
+        var nb = ft.bn[k];
+        if (!nb) { continue; }
+        var k1 = (k + 1) & 3;
+        var ex1 = (sp[k * 2] + sp[k1 * 2]) * 0.5 - mx;
+        var ey1 = (sp[k * 2 + 1] + sp[k1 * 2 + 1]) * 0.5 - my;
+        var el1 = Math.sqrt(ex1 * ex1 + ey1 * ey1);
+        var wall = 0;
+        if (el1 > 1e-6 && wallPx > 0.01) {
+          var dp = -((ex1 / el1) * sdx + (ey1 / el1) * sdy);
+          if (dp > 0) { wall = wallPx * dp; }
+        }
+        var wid = bevBase * ft.bw + occBase * ft.sm + wall;
+        if (wid < 0.28) { continue; }
+
+        var bx1 = nb[0] * cyw + nb[2] * syw;
+        var bz0 = -nb[0] * syw + nb[2] * cyw;
+        var bnx = bx1 * crl - nb[1] * srl;
+        var by1 = bx1 * srl + nb[1] * crl;
+        var bny = by1 * cpp - bz0 * spp;
+        var bnz = by1 * spp + bz0 * cpp;
+        this.shadeF(ccx, ccy, ccz, bnx, bny, bnz, ft, ft.rg, bc);
+
+        var wgt = (occBase * ft.sm * 0.75 + wall) / wid;
+        if (wgt > 1) { wgt = 1; }
+        var iw = 1 - wgt;
+        var er = (bc[0] * iw + wr * wgt) | 0;
+        var eg = (bc[1] * iw + wg * wgt) | 0;
+        var eb = (bc[2] * iw + wb * wgt) | 0;
+        if (wall < 0.14 && er > fr - 3 && er < fr + 3 && eg > fg - 3 && eg < fg + 3) { continue; }
+
+        ctx.beginPath();
+        ctx.moveTo(sp[k * 2], sp[k * 2 + 1]);
+        ctx.lineTo(sp[k1 * 2], sp[k1 * 2 + 1]);
+        ctx.lineWidth = wid;
+        ctx.strokeStyle = 'rgb(' + er + ',' + eg + ',' + eb + ')';
+        ctx.stroke();
+      }
+
+      if (sts) { this.starTile(sts, sp, fnx, fny, fnz, pxs * 0.25, pys * 0.25, pzs * 0.25, d, f, ox, oy); }
+    }
+
+    ctx.restore();
+    this.beams(p, W, H, ox, oy, sil, d, f, cyw, syw, cpp, spp, crl, srl);
+    this.hanger(p, W, H, ox, oy, sil, true);
+    this.envMirror(p, W, H, ox, oy, sil);
+    if (sts) { this.starDraw(p, sts, sil); }
+    this.envPost(p, W, H, ox, oy, sil);
+  }
+
+  // ---- Star sparkles ------------------------------------------------------------
+  //
+  // A few places where a reflection is so intense that the camera renders it as a
+  // star: a pinpoint white core, thin sharp rays from the lens's star filter, a trace
+  // of bloom and a fast falloff. The star is a camera phenomenon laid over the ball;
+  // the facets underneath are shaded exactly as before, and with the effect off the
+  // ball is unchanged.
+  //
+  // What decides where a star is, is a mirror law, not an attachment. Each sparkle has
+  // a light direction that is fixed in the room. Its Position controls say where on
+  // the (smooth) ball that light would be mirrored into the lens — X across, Y up and
+  // down, Depth from the silhouette (0) to straight at the camera (1) — and the light
+  // direction follows from that: L = 2(n·v)n − v at that point. The ball's spin, sway
+  // and lean never touch L.
+  //
+  // Every frame each visible tile is tested against every sparkle's light: how far its
+  // own reflected view ray (from its real, tilted, spinning normal) is from L. Tiles
+  // near alignment catch the light; the best one or two carry the star. As the ball
+  // turns, the tile that was in line swings out and fades while its neighbour swings
+  // in and brightens, and within a tile the reflection slides across it the way the
+  // lamp's image slides across a turning mirror. Their strength is set by Party
+  // Environment and the sparkle controls only, independent of the party lights.
+  starSetup(p, ox, oy, sil, d, rb, f, ts) {
+    if (p.sparkleShow === false) { return null; }
+    var gI = p.sparkleIntensity == null ? 1 : p.sparkleIntensity;
+    var gP = p.sparklePresence == null ? 1 : p.sparklePresence;
+    if (gI <= 0 || gP <= 0 || !(f > 0) || !(d > rb)) { return null; }
+    // The light's image in the mirror is a flat-topped beam exactly one tile pitch
+    // across (in reflected angle a tile pitch is twice the tiles' angular size, since
+    // a mirror turns a ray by twice its own turn). With that profile, cos²(πa/2A), two
+    // neighbouring tiles always split the light between them so that their shares add
+    // up to one: as one swings out of line the next swings in by exactly as much.
+    var A = 2 * ts;
+    if (A < 0.06) { A = 0.06; } else if (A > 0.5) { A = 0.5; }
+    var sig = A * 0.5;
+    var cg = Math.cos(A);
+    var out = this.stb || (this.stb = []);
+    out.length = 0;
+    for (var k = 1; k <= 8; k++) {
+      var pre = 'sparkle' + k;
+      if (p[pre + 'Show'] !== true) { continue; }
+      var px = p[pre + 'X'] || 0, py = p[pre + 'Y'] || 0, pz = p[pre + 'Depth'];
+      if (pz == null) { pz = 1; }
+      if (pz < 0.02) { pz = 0.02; }
+      var pl = Math.sqrt(px * px + py * py + pz * pz);
+      px /= pl; py /= pl; pz /= pl;
+      // the point on the ball this sparkle's light is mirrored from, and that light
+      var Sx = px * rb, Sy = py * rb, Sz = pz * rb;
+      var vx = -Sx, vy = -Sy, vz = d - Sz;
+      var vl = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+      vx /= vl; vy /= vl; vz /= vl;
+      var ndv = px * vx + py * vy + pz * vz;
+      if (ndv < 0.02) { ndv = 0.02; }
+      out.push({
+        k: k, sig: sig, A: A, cg: cg,
+        lx: 2 * ndv * px - vx, ly: 2 * ndv * py - vy, lz: 2 * ndv * pz - vz,
+        size: p[pre + 'Size'] == null ? 1 : p[pre + 'Size'],
+        inten: p[pre + 'Intensity'] == null ? 1 : p[pre + 'Intensity'],
+        sharp: p[pre + 'Sharpness'] == null ? 0.75 : p[pre + 'Sharpness'],
+        pres: p[pre + 'Presence'] == null ? 0.9 : p[pre + 'Presence'],
+        c: []
+      });
+    }
+    return out.length ? out : null;
+  }
+
+  // One drawn tile against every sparkle's light. n: its normal this frame; c: its
+  // centre; sp: its screen corners.
+  starTile(sts, sp, nx, ny, nz, cx, cy, cz, d, f, ox, oy) {
+    var vx = -cx, vy = -cy, vz = d - cz;
+    var vl = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+    vx /= vl; vy /= vl; vz /= vl;
+    var ndv = nx * vx + ny * vy + nz * vz;
+    if (ndv <= 0.02) { return; }
+    // where this tile's mirror is looking
+    var rx = 2 * ndv * nx - vx, ry = 2 * ndv * ny - vy, rz = 2 * ndv * nz - vz;
+    for (var i = 0; i < sts.length; i++) {
+      var s = sts[i];
+      var ca = rx * s.lx + ry * s.ly + rz * s.lz;
+      if (ca < s.cg) { continue; }
+      if (ca > 1) { ca = 1; }
+      var a = Math.acos(ca);
+      if (a >= s.A) { continue; }
+      var cw = Math.cos(1.5707963 * a / s.A);
+      // a tile turned edge-on to the camera shows the light only faintly
+      var eg = (ndv - 0.02) / 0.4;
+      if (eg > 1) { eg = 1; }
+      var w = cw * cw * eg * eg * (3 - 2 * eg);
+      if (w < 0.003) { continue; }
+      var c = s.c;
+      // where the lamp's image falls on this tile's plane (the mirror point)
+      var nl = nx * s.lx + ny * s.ly + nz * s.lz;
+      var mx = (sp[0] + sp[2] + sp[4] + sp[6]) * 0.25, my = (sp[1] + sp[3] + sp[5] + sp[7]) * 0.25;
+      var hx = mx, hy = my;
+      if (nl > 0.01) {
+        var ix = s.lx - 2 * nl * nx, iy = s.ly - 2 * nl * ny, iz = s.lz - 2 * nl * nz;
+        var t = (nx * cx + ny * cy + nz * (cz - d)) / -nl;
+        var Pz = d + iz * t;
+        if (t > 0 && d - Pz > 0.05) {
+          var sP = f / (d - Pz);
+          var dx = ox + ix * t * sP - mx, dy = oy - iy * t * sP - my;
+          var dl = Math.sqrt(dx * dx + dy * dy);
+          if (dl > 1e-6) {
+            // the image sweeps across the tile as it turns; its centroid stays on it
+            var half = 0.35 * (Math.abs(sp[0] - sp[4]) + Math.abs(sp[1] - sp[5]));
+            var K = 1.2 * s.sig * f;
+            var g = half * 0.7 * Math.tanh(dl / K) / dl;
+            hx = mx + dx * g; hy = my + dy * g;
+          }
+        }
+      }
+      c.push({ w: w, x: hx, y: hy });
+    }
+  }
+
+  // The stars themselves, drawn the way a lens renders an overexposed point.
+  starDraw(p, sts, sil) {
+    var gInt = p.sparkleIntensity == null ? 1 : p.sparkleIntensity;
+    var gSize = p.sparkleSize == null ? 1 : p.sparkleSize;
+    var gSharp = p.sparkleSharpness == null ? 1 : p.sparkleSharpness;
+    var gPres = p.sparklePresence == null ? 1 : p.sparklePresence;
+    // colour temperature and the balance of the long ray pairs, per star
+    var TINT = [[1.00, 0.99, 0.96, 1.18], [0.97, 0.99, 1.00, 1.05], [1.00, 1.00, 0.98, 1.25],
+      [0.98, 0.99, 1.00, 0.95], [1.00, 0.98, 0.95, 1.10], [0.97, 0.99, 1.00, 1.20],
+      [1.00, 0.99, 0.97, 1.00], [0.98, 1.00, 1.00, 1.12]];
+    // Party Environment brings them up with the room: all but gone in the studio,
+    // clear by the middle, intense at the top.
+    var m = this.gal == null ? 0 : this.gal;
+    var mE = Math.pow(m, 1.6);
+    // The sparkles' lights are their own fixed lamps: they do not depend on the party
+    // rig's intensity, lamp count or colours. Only Party Environment and the sparkle
+    // controls set how strongly they show.
+    var rig = 0.9;
+    var sc = sil / 150;
+    if (sc < 0.6) { sc = 0.6; } else if (sc > 2.2) { sc = 2.2; }
+    var ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    // Every tile catching a sparkle's light is its own reflection: each gets its own
+    // core and bloom at exactly its own strength, so the tile swinging out of line
+    // dims while the one swinging in brightens. The star-filter rays are long next to
+    // the gap between two tiles, so the rays of both overlap into one star: they are
+    // drawn once, from the light-weighted centre of everything the sparkle's light is
+    // reaching, with the combined strength. That centre slides from one tile to the
+    // next as their strengths trade, and the combined strength stays even through the
+    // hand-over, so it reads as one reflection travelling, not two stars. The camera
+    // integrates light over its exposure (~1/20 s), which is the only smoothing.
+    var dt = this.fdt == null ? 0.016 : this.fdt;
+    if (!(dt > 0)) { dt = 0; }
+    var kS = 1 - Math.exp(-dt / 0.05);
+    var mem = this.stM || (this.stM = {});
+    for (var j = 0; j < sts.length; j++) {
+      var s = sts[j], T = TINT[(s.k - 1) & 7];
+      var pres = gPres * s.pres;
+      if (pres <= 0) { continue; }
+      var o = {
+        size: gSize * s.size, sharp: Math.max(0, Math.min(1, gSharp * s.sharp)),
+        pres: pres, sc: sc, sil: sil, T: T,
+        rgb: (T[0] * 255 | 0) + ',' + (T[1] * 255 | 0) + ',' + (T[2] * 255 | 0)
+      };
+      var base = gInt * s.inten * mE * rig;
+      var W = 0, X = 0, Y = 0, n;
+      for (n = 0; n < s.c.length; n++) { W += s.c[n].w; X += s.c[n].w * s.c[n].x; Y += s.c[n].w * s.c[n].y; }
+      if (W > 1e-9) { X /= W; Y /= W; }
+      var M = mem[s.k];
+      if (!M) { M = mem[s.k] = { W: W, x: X, y: Y }; }
+      else {
+        if (M.W < 0.02 || kS === 0) { if (W > 1e-9) { M.x = X; M.y = Y; } }
+        else if (W > 1e-9) { M.x += (X - M.x) * kS; M.y += (Y - M.y) * kS; }
+        M.W = kS === 0 ? W : M.W + (W - M.W) * kS;
+      }
+      for (n = 0; n < s.c.length; n++) { this.starPart(0, s.c[n].x, s.c[n].y, base * s.c[n].w, o); }
+      this.starPart(1, M.x, M.y, base * M.W, o);
+      for (n = 0; n < s.c.length; n++) { this.starPart(2, s.c[n].x, s.c[n].y, base * s.c[n].w, o); }
+    }
+    ctx.restore();
+  }
+
+  // One part of a star at strength I: 0 bloom, 1 rays, 2 core.
+  starPart(kind, x, y, I, o) {
+    if (!(I >= 0.004)) { return; }
+    var ctx = this.ctx, size = o.size, sc = o.sc, rgb = o.rgb, T = o.T;
+    // a dimmer star is also a softer one
+    var sharp = o.sharp * (0.72 + 0.28 * Math.min(1, Math.sqrt(I)));
+    var vis = Math.pow(Math.min(1, I * 1.5), 1.2) * o.pres;
+    var gI = Math.sqrt(I);
+    if (kind === 0) {
+      // bloom: only a trace, and only as bright as the point itself
+      var sz = size * sc;
+      var br = (5 + 12 * gI) * sz;
+      var bl = ctx.createRadialGradient(x, y, 0, x, y, br);
+      var ba = 0.26 * vis * (1.3 - 0.6 * sharp);
+      bl.addColorStop(0, 'rgba(' + rgb + ',' + ba.toFixed(3) + ')');
+      bl.addColorStop(0.15, 'rgba(' + rgb + ',' + (ba * 0.30).toFixed(3) + ')');
+      bl.addColorStop(0.45, 'rgba(' + rgb + ',' + (ba * 0.06).toFixed(3) + ')');
+      bl.addColorStop(1, 'rgba(' + rgb + ',0)');
+      ctx.fillStyle = bl;
+      ctx.fillRect(x - br, y - br, br * 2, br * 2);
+    } else if (kind === 1) {
+      // rays: four long ones and four short diagonals, one orientation for every star
+      // (it is one lens); each a thin tapered wedge fading fast from the core
+      var L0 = o.sil * 0.50 * size * (0.25 + 0.75 * gI);
+      var w0 = (3.2 - 1.8 * sharp) * Math.sqrt(size) * Math.max(0.8, Math.min(1.5, sc));
+      for (var r = 0; r < 8; r++) {
+        var diag = r & 1;
+        var an = r * Math.PI * 0.25;
+        var len = diag ? L0 * 0.40 : L0 * ((r === 0 || r === 4) ? T[3] : 1 / T[3]);
+        var wd = diag ? w0 * 0.7 : w0;
+        var ra = Math.min(1, vis * (diag ? 0.95 : 1.5));
+        this.starRay(x, y, an, len, wd, ra, rgb, sharp);
+        // the hot inner part of the ray, where it leaves the core
+        this.starRay(x, y, an, len * 0.32, wd * 1.15, ra * 0.8, rgb, sharp);
+        // the ray's soft skirt, which a softer lens spreads wider
+        this.starRay(x, y, an, len * 0.5, wd * (3.0 - 1.4 * sharp), ra * 0.10 * (1.3 - sharp), rgb, 0);
+      }
+    } else {
+      // the core: a pinpoint, pure white
+      var cR = (1.5 + 2.0 * gI) * Math.sqrt(size) * Math.max(0.8, Math.min(1.4, sc));
+      var cg2 = ctx.createRadialGradient(x, y, 0, x, y, cR * 2);
+      cg2.addColorStop(0, 'rgba(255,255,255,' + Math.min(1, vis * 1.3).toFixed(3) + ')');
+      cg2.addColorStop(0.4, 'rgba(255,255,255,' + Math.min(1, vis * 1.1).toFixed(3) + ')');
+      cg2.addColorStop(0.7, 'rgba(' + rgb + ',' + (vis * 0.22).toFixed(3) + ')');
+      cg2.addColorStop(1, 'rgba(' + rgb + ',0)');
+      ctx.fillStyle = cg2;
+      ctx.fillRect(x - cR * 2, y - cR * 2, cR * 4, cR * 4);
+    }
+  }
+
+  starRay(x, y, an, len, wd, a, rgb, sharp) {
+    if (len < 1 || a < 0.004) { return; }
+    var ctx = this.ctx;
+    var dx = Math.cos(an), dy = Math.sin(an), nx = -dy, ny = dx;
+    var hw = wd * 0.5;
+    var gr = ctx.createLinearGradient(x, y, x + dx * len, y + dy * len);
+    // falloff: steep near the core, a long faint tail; a sharper lens keeps the tail
+    var e = 1.1 + 1.0 * (1 - sharp);
+    for (var k = 0; k <= 7; k++) {
+      var u = k / 7;
+      var v = Math.pow(1 - u, e) * (0.55 + 0.45 / (1 + 6 * u));
+      gr.addColorStop(u, 'rgba(' + rgb + ',' + (a * v).toFixed(3) + ')');
+    }
+    ctx.fillStyle = gr;
+    // a fine line that narrows toward its tip
+    var tw = hw * 0.22;
+    ctx.beginPath();
+    ctx.moveTo(x + nx * hw, y + ny * hw);
+    ctx.lineTo(x + dx * len + nx * tw, y + dy * len + ny * tw);
+    ctx.lineTo(x + dx * len - nx * tw, y + dy * len - ny * tw);
+    ctx.lineTo(x - nx * hw, y - ny * hw);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // The bright white spots a mirror ball throws around a room.
+  //
+  // These are not drawn rays. Each facet is a mirror, so a lamp striking it leaves
+  // along R = 2(N.L)N - L. That ray is followed until it meets the wall plane or the
+  // floor plane, and the spot is lit where it lands. Everything therefore falls out of
+  // geometry already in the scene: the facet's own rotated normal, the lamp directions
+  // from the existing rig, and the camera. Turn the ball and the spots sweep; move the
+  // rig and they follow. There is no second animation and no overlay.
+  beams(p, W, H, ox, oy, sil, d, f, cyw, syw, cpp, spp, crl, srl) {
+    if (crl == null) { crl = 1; srl = 0; }
+    var amt = p.beamLight == null ? 1 : p.beamLight;
+    if (amt < 0.004) { return; }
+    amt *= this.gain(2.6);
+    var pls = this.pl;
+    var fs = this.facets;
+    if (!pls || !pls.length || !fs || !fs.length) { return; }
+    var baseY = this.baseY == null ? H * 0.84 : this.baseY;
+    var ctx = this.ctx;
+
+    // The room's two planes, in the same world units the ball is built in. The floor
+    // is placed so that where it meets the wall lands exactly on the painted floor
+    // line — the beams and the room agree about where the floor is.
+    var Zw = 2.6;
+    var Yf = (baseY - oy) * (d + Zw) / f;
+    if (!(Yf > 0.2)) { return; }
+
+    // The spots are gathered in a half-resolution buffer and composited once.
+    // Additively blending a hundred rotated sprites straight onto the main canvas
+    // measured three times the cost of doing it here and blitting the result, and the
+    // slight softening a half-res buffer gives is what reflected light looks like.
+    var bf = this.beamBuf(W, H);
+    if (!bf) { return; }
+    var bx = bf.ctx, bs = bf.s;
+    bx.setTransform(1, 0, 0, 1, 0, 0);
+    bx.globalCompositeOperation = 'source-over';
+    bx.clearRect(0, 0, bf.w, bf.h);
+    bx.globalCompositeOperation = 'lighter';
+    bx.imageSmoothingEnabled = true;
+
+    // Facet outermost, lamps inside: rotating a facet into world space is the costly
+    // part, and it does not depend on which lamp is striking it.
+    var stride = Math.max(2, Math.round(fs.length / 190));
+    var nl = pls.length;
+    var tints = this.btint || (this.btint = []);
+    tints.length = 0;
+    for (var q = 0; q < nl; q++) {
+      var Lq = pls[q];
+      // A specular highlight of a strong lamp reads white; only a trace of the lamp's
+      // own colour survives in it, which is what keeps these part of the same rig.
+      // Each gets its own sprite, because drawImage ignores fillStyle.
+      tints.push(this.beamSprite(Math.round(255 * (0.84 + 0.16 * Lq[3])),
+        Math.round(255 * (0.84 + 0.16 * Lq[4])), Math.round(255 * (0.84 + 0.16 * Lq[5]))));
+    }
+    var drawn = 0, li, i;
+    for (i = 0; i < fs.length; i += stride) {
+      if (drawn > 420) { break; }
+      var ft = fs[i];
+      // The facet's normal and centre where they actually are this frame.
+      var n1 = ft.nx * cyw + ft.nz * syw;
+      var nz0 = -ft.nx * syw + ft.nz * cyw;
+      var n0 = n1 * crl - ft.ny * srl;
+      var ny1 = n1 * srl + ft.ny * crl;
+      var ny = ny1 * cpp - nz0 * spp;
+      var nz = ny1 * spp + nz0 * cpp;
+      var cx1 = ft.cx * cyw + ft.cz * syw;
+      var cz0 = -ft.cx * syw + ft.cz * cyw;
+      var cx0 = cx1 * crl - ft.cy * srl;
+      var cy1 = cx1 * srl + ft.cy * crl;
+      var cy = cy1 * cpp - cz0 * spp;
+      var cz = cy1 * spp + cz0 * cpp;
+      var px0 = cx0;
+      var fj = ft.j == null ? 1 : ft.j;
+
+      for (li = 0; li < nl; li++) {
+        var L = pls[li];
+        var amp = L[7] == null ? 0 : L[7];
+        if (amp < 0.02) { continue; }
+        var lx = L[0], ly = L[1], lz = L[2];
+        var ndl = n0 * lx + ny * ly + nz * lz;
+        if (ndl <= 0.34) { continue; }
+        var sp = tints[li];
+        if (!sp) { continue; }
+
+        var rx = 2 * ndl * n0 - lx;
+        var ry = 2 * ndl * ny - ly;
+        var rz = 2 * ndl * nz - lz;
+
+        // Where does that ray first meet the room?
+        var t = -1, onFloor = false;
+        if (rz < -0.02) { t = (-Zw - cz) / rz; }
+        if (ry < -0.02) {
+          var tf = (-Yf - cy) / ry;
+          if (tf > 0.02 && (t < 0 || tf < t)) { t = tf; onFloor = true; }
+        }
+        if (t <= 0.02 || t > 60) { continue; }
+
+        var qx = px0 + rx * t, qy = cy + ry * t, qz = cz + rz * t;
+        var ss = f / (d - qz);
+        if (!(ss > 0)) { continue; }
+        var hx = ox + qx * ss, hy = oy - qy * ss;
+        if (hx < -W * 0.2 || hx > W * 1.2 || hy < -H * 0.2 || hy > H * 1.2) { continue; }
+        // A spot cannot be on the wall below the floor line, or on the floor above it.
+        if (onFloor ? hy < baseY - 2 : hy > baseY + 2) { continue; }
+
+        // Energy: the facet's own foreshortening, its individual reflectivity, and the
+        // beam spreading as it travels.
+        var e = amp * ndl * ndl * Math.sqrt(ndl) * fj / (1 + 0.09 * t * t);
+        if (e < 0.020) { continue; }
+        var a = e * amt * 1.9;
+        if (a > 0.62) { a = 0.62; }
+        if (a < 0.014) { continue; }
+
+        // The footprint is an ellipse because the beam meets the surface at an angle:
+        // it stretches along the beam's own direction WITHIN that surface, by one over
+        // the cosine of incidence. Stretching along the screen direction from the ball
+        // instead is what turns honest spots into a drawn sunburst, so the axis is
+        // found by stepping along the in-plane direction and projecting that step.
+        var cosI = onFloor ? -ry : -rz;
+        if (cosI < 0.10) { cosI = 0.10; }
+        var ipx, ipy, ipz;
+        if (onFloor) { ipx = rx; ipy = 0; ipz = rz; } else { ipx = rx; ipy = ry; ipz = 0; }
+        var ipl = Math.sqrt(ipx * ipx + ipy * ipy + ipz * ipz);
+        var ang = 0;
+        if (ipl > 0.0001) {
+          var ex2 = 0.06;
+          var q2x = qx + ipx / ipl * ex2, q2y = qy + ipy / ipl * ex2, q2z = qz + ipz / ipl * ex2;
+          var s2 = f / (d - q2z);
+          if (s2 > 0) { ang = Math.atan2((oy - q2y * s2) - hy, (ox + q2x * s2) - hx); }
+        }
+        // A spot grows as the beam travels, but only so far: past this it is a smear
+        // rather than a reflection, and every extra pixel is additive blending.
+        var wpx = sil * (0.050 + 0.020 * t);
+        if (wpx < 0.9) { wpx = 0.9; } else if (wpx > sil * 0.125) { wpx = sil * 0.125; }
+        var stretch = 1 / cosI;
+        if (stretch > 3.2) { stretch = 3.2; }
+        var lng = wpx * stretch;
+
+        // Light lands on the room, never on the ball: the ball's own facets already
+        // answer these lamps directly, so any spot that could touch it is not cast.
+        var ddx2 = hx - ox, ddy2 = hy - oy;
+        var keep = sil * 1.02 + lng * 0.62;
+        if (ddx2 * ddx2 + ddy2 * ddy2 < keep * keep) { continue; }
+
+        var ca = Math.cos(ang), sa2 = Math.sin(ang);
+        bx.setTransform(ca * lng * bs, sa2 * lng * bs,
+          -sa2 * wpx * bs, ca * wpx * bs, hx * bs, hy * bs);
+        bx.globalAlpha = a;
+        bx.drawImage(sp, -1, -1, 2, 2);
+        drawn++;
+      }
+    }
+    bx.setTransform(1, 0, 0, 1, 0, 0);
+    if (!drawn) { return; }
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(bf.el, 0, 0, bf.w, bf.h, 0, 0, W, H);
+    ctx.restore();
+  }
+
+  beamBuf(W, H) {
+    if (typeof document === 'undefined') { return null; }
+    var s = 0.5;
+    var w = Math.max(2, Math.round(W * s)), h = Math.max(2, Math.round(H * s));
+    if (!this.bb) { this.bb = { el: document.createElement('canvas') }; }
+    var b = this.bb;
+    if (b.w !== w || b.h !== h) {
+      b.el.width = w; b.el.height = h; b.w = w; b.h = h; b.s = s;
+      b.ctx = b.el.getContext('2d');
+    }
+    return b.ctx ? b : null;
+  }
+
+  // One small blob per lamp colour, built once and cached. A hard core with a fast
+  // tail: a specular spot, not a soft glow.
+  beamSprite(r, g, b) {
+    if (typeof document === 'undefined') { return null; }
+    if (!this.bsp) { this.bsp = {}; }
+    var key = r + '_' + g + '_' + b;
+    if (this.bsp[key]) { return this.bsp[key]; }
+    var c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    var x = c.getContext('2d');
+    if (!x) { return null; }
+    var rgb = r + ',' + g + ',' + b + ',';
+    var gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(' + rgb + '1)');
+    gr.addColorStop(0.10, 'rgba(' + rgb + '0.88)');
+    gr.addColorStop(0.26, 'rgba(' + rgb + '0.40)');
+    gr.addColorStop(0.50, 'rgba(' + rgb + '0.12)');
+    gr.addColorStop(0.78, 'rgba(' + rgb + '0.025)');
+    gr.addColorStop(1, 'rgba(' + rgb + '0)');
+    x.fillStyle = gr;
+    x.fillRect(0, 0, 64, 64);
+    this.bsp[key] = c;
+    return c;
+  }
+
+  renderVals() {
+    var self = this;
+    if (!this._ref) {
+      this._ref = function (el) { self.onCanvas(el); };
+    }
+    return { setCanvas: this._ref };
+  }
+
+  env(p, W, H, ox, oy, sil) {
+    var ctx = this.ctx;
+    // One physical room, not two scenes. `gal` is now a position between the studio
+    // state (0) and the gallery state (1); every property below is read off that
+    // position, so stopping anywhere on the drag gives a real environment rather than
+    // a dark sheet laid over the bright one.
+    var gal = this.blend(p);
+    // Brightness is perceived multiplicatively, so it interpolates geometrically —
+    // a linear ramp would dump most of the darkening into the last quarter of the drag.
+    // Background Brightness is the room's own exposure, so it belongs here with the
+    // wall and floor tones — it is the one background control besides Contrast that
+    // is allowed to touch the architecture. The five colour controls are nowhere near
+    // this line: they act only on the coloured light added to the room later.
+    var bright = this.EB * Math.pow(this.GB / this.EB, gal) * this.bgk(p, 'bgBrightness', 2.2);
+    var wt = this.mixHex(this.EWT, this.GWT, gal);
+    var ft = this.mixHex(this.EFT, this.GFT, gal);
+    var frost = 0.14 + (0.34 - 0.14) * gal;
+    var gref = 0.56 + (0.30 - 0.56) * gal;
+    var frough = 0.00 + (0.45 - 0.00) * gal;
+    var tex = p.floorTexture == null ? 0.5 : p.floorTexture;
+    // Floor visibility is only visibility: with it off the wall simply stands alone,
+    // and nothing is put in the floor's place.
+    var floorOn = p.floorShow !== false;
+    this.floorOn = floorOn;
+    var baseY = H * (p.floorLine == null ? 0.84 : p.floorLine);
+    if (baseY > H - 24) { baseY = H - 24; } else if (baseY < H * 0.55) { baseY = H * 0.55; }
+    if (!floorOn) { baseY = H; }
+    var i;
+    var mulW = function (k) { return [wt[0] * k, wt[1] * k, wt[2] * k]; };
+    var mulF = function (k) { return [ft[0] * k, ft[1] * k, ft[2] * k]; };
+
+    // The studio is lit evenly; the gallery is not. As the drag moves toward the
+    // gallery the light on the wall falls off harder from its centre, which is where
+    // the cinematic contrast comes from — the room gets darker AND less uniform,
+    // rather than merely dimmer.
+    var wfall = 1 + 1.9 * gal * this.bgk(p, 'bgContrast', 2.2);
+    var wdip = function (k) { return 1 - (1 - k) * wfall; };
+    var wg = ctx.createLinearGradient(0, 0, 0, baseY);
+    wg.addColorStop(0, this.stop(mulW(wdip(0.845)), bright));
+    wg.addColorStop(0.46, this.stop(mulW(0.985), bright));
+    wg.addColorStop(1, this.stop(mulW(wdip(0.905)), bright));
+    ctx.fillStyle = wg;
+    ctx.fillRect(0, 0, W, baseY);
+
+    var tr = Math.max(W, H) * (0.46 + 0.34 * frost);
+    var ta = 0.085 * frost * (1 + (0.22 - 1) * gal);
+    if (ta > 0.003) {
+      var tg = ctx.createRadialGradient(W * 0.5, baseY * 0.44, 0, W * 0.5, baseY * 0.44, tr);
+      tg.addColorStop(0, 'rgba(255,253,246,' + ta.toFixed(3) + ')');
+      tg.addColorStop(0.55, 'rgba(255,253,246,' + (ta * 0.42).toFixed(3) + ')');
+      tg.addColorStop(1, 'rgba(255,253,246,0)');
+      ctx.fillStyle = tg;
+      ctx.fillRect(0, 0, W, baseY);
+    }
+
+    var hzg = ctx.createLinearGradient(0, 0, W, 0);
+    var ha = ((0.085 + (0.16 - 0.085) * gal) + 0.05 * frost) * this.bgk(p, 'bgContrast', 1.5);
+    hzg.addColorStop(0, 'rgba(0,0,0,' + (ha * 0.92).toFixed(3) + ')');
+    hzg.addColorStop(0.45, 'rgba(0,0,0,0)');
+    hzg.addColorStop(1, 'rgba(0,0,0,' + ha.toFixed(3) + ')');
+    ctx.fillStyle = hzg;
+    ctx.fillRect(0, 0, W, baseY);
+
+    if (gref > 0.004) {
+      var rg = ctx.createLinearGradient(0, baseY * 0.62, 0, baseY);
+      rg.addColorStop(0, 'rgba(255,255,255,0)');
+      rg.addColorStop(1, 'rgba(255,255,255,' + (0.055 * gref).toFixed(3) + ')');
+      ctx.fillStyle = rg;
+      ctx.fillRect(0, baseY * 0.62, W, baseY * 0.38);
+    }
+
+    var mw = this.mottle('wall');
+    if (mw) {
+      ctx.save();
+      ctx.globalAlpha = (0.11 + (0.07 - 0.11) * gal) * (0.5 + 0.5 * frost);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(mw, 0, 0, 128, 128, -W * 0.15, -baseY * 0.2, W * 1.3, baseY * 1.45);
+      ctx.restore();
+    }
+
+    if (floorOn) {
+    var ffall = 1 + 1.5 * gal * this.bgk(p, 'bgContrast', 2.2);
+    var fdip = function (k) { return 1 - (1 - k) * ffall; };
+    var fg = ctx.createLinearGradient(0, baseY, 0, H);
+    fg.addColorStop(0, this.stop(mulF(1.02), bright));
+    fg.addColorStop(0.42, this.stop(mulF(fdip(0.86)), bright));
+    fg.addColorStop(1, this.stop(mulF(fdip(0.70)), bright));
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, baseY, W, H - baseY);
+
+    var mf = this.mottle('floor');
+    if (mf && tex > 0.004) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      var fh = H - baseY;
+      for (i = 0; i < 3; i++) {
+        ctx.globalAlpha = 0.085 * tex * (0.45 + 0.28 * i);
+        ctx.drawImage(mf, 0, 0, 128, 128, -W * 0.1 * i,
+          baseY + fh * (i / 3) - (fh / 3) * 0.2, W * (1.2 + 0.5 * i), (fh / 3) * 1.5);
+      }
+      ctx.globalAlpha = 0.05 * tex;
+      for (i = 0; i < 2; i++) {
+        ctx.drawImage(mf, 0, 0, 128, 128, W * (0.5 * i - 0.1), baseY, W * 0.7, fh);
+      }
+      ctx.restore();
+    }
+
+    if (frough < 0.995) {
+      var pol = ctx.createLinearGradient(0, baseY, 0, baseY + (H - baseY) * (0.55 + 0.4 * (1 - frough)));
+      var pa = (0.10 * (1 - frough) + 0.02) * (1 + (0.55 - 1) * gal);
+      pol.addColorStop(0, 'rgba(255,255,255,' + pa.toFixed(3) + ')');
+      pol.addColorStop(0.45, 'rgba(255,255,255,' + (pa * 0.38).toFixed(3) + ')');
+      pol.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = pol;
+      ctx.fillRect(0, baseY, W, H - baseY);
+    }
+
+    var seam = ctx.createLinearGradient(0, baseY - H * 0.016, 0, baseY + H * 0.042);
+    seam.addColorStop(0, 'rgba(0,0,0,0)');
+    seam.addColorStop(0.3, 'rgba(0,0,0,' + (0.075 + (0.14 - 0.075) * gal).toFixed(4) + ')');
+    seam.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = seam;
+    ctx.fillRect(0, baseY - H * 0.016, W, H * 0.058);
+
+    // The ball hangs above the floor plane; its foot point is where the vertical
+    // through the ball meets the floor. Light reaching the floor spreads and dims
+    // with that gap, so the pool softens as the ball rises.
+    var gap = baseY - (oy + sil);
+    if (gap < 0) { gap = 0; }
+    var gapN = gap / (2 * sil);
+    if (gapN > 3) { gapN = 3; }
+    var contact = baseY + Math.min(H - baseY, 2 * sil * 0.05) + 4;
+    // A ball this far above the floor puts its mirror image below the frame, so what
+    // the floor actually shows of it is this broad pool. Floor Reflection scales it,
+    // normalised so each mode's default reproduces its approved look exactly.
+    var refK = 1 + 0.55 * gal;
+    var swa = 0.075 * refK * (1 - 0.5 * frough) * (1 + (0.5 - 1) * gal) / (1 + 0.55 * gapN);
+    var sw = ctx.createRadialGradient(ox, contact, 0, ox, contact, Math.max(W, H) * (0.40 + 0.10 * gapN));
+    sw.addColorStop(0, 'rgba(255,255,255,' + swa.toFixed(3) + ')');
+    sw.addColorStop(0.5, 'rgba(255,255,255,' + (swa * 0.34).toFixed(3) + ')');
+    sw.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sw;
+    ctx.fillRect(0, baseY, W, H - baseY);
+    }
+
+    this.envLights(p, W, H, ox, oy, sil, baseY, gal, frost, frough);
+
+    this.baseY = baseY;
+    this.gapN = gapN;
+  }
+
+  envLights(p, W, H, ox, oy, sil, baseY, gal, frost, frough) {
+    this.rigCol = null;
+    var pls = this.pl;
+    if (!pls || !pls.length) { return; }
+    // How strongly the room answers the lights. The drag sets the room's own
+    // willingness to show colour; Party Colourfulness scales it independently, so
+    // a bright studio can still be pushed to a strong colour response.
+    // Minimum environmental party influence at the studio end, maximum at the party
+    // end. The floor is a whisper rather than a flat zero so the ball still reads as
+    // standing in the room at 0 instead of pasted onto it.
+    var infl = (0.10 + (2.50 - 0.10) * gal) * (this.pchroma == null ? 1 : this.pchroma)
+      * this.bgk(p, 'bgColorIntensity', 2.6);
+    // The five colour controls live here and nowhere else. Everything in this method
+    // is ADDED to the room that has already been painted, so none of them can change
+    // the wall's or floor's own exposure, tone or material — only how much of the
+    // party's colour lands on them, how far it reaches, how it blends and how rich it
+    // reads. With the lamps off, these five do literally nothing.
+    var spreadK = this.bgk(p, 'colorSpread', 1.9);
+    var richK = this.bgk(p, 'colorRichness', 1.7);
+    var balK = this.bgk(p, 'bgColorBalance', 2.4);
+    this.bgBlend = this.bgk(p, 'colorBlend', 2.0);
+    // Contrast is a gap, not a dimmer. A gamma on the falloff alone just pulls the
+    // whole room toward black, so it works from both ends: the light's tail drops
+    // away faster AND its lit parts are lifted, which deepens the unlit room while
+    // keeping the overall exposure roughly where it was.
+    this.bgFall = this.bgk(p, 'bgContrast', 1.25);
+    var conK = this.bgk(p, 'bgContrast', 2.0);
+    if (infl < 0.004) { return; }
+    var ctx = this.ctx;
+    var i, L, wgt, resp, a;
+
+    // How the two rooms differ, and the only place they differ: the ball, the rig and
+    // the colours are shared, the surfaces just answer them with different strength,
+    // reach and chroma. Gallery reads as a small private party — richer colour held
+    // close to the ball. Studio stays neutral, with just enough bounce that the ball
+    // belongs to the room.
+    var wallK = (0.048 + (0.44 - 0.048) * gal) * infl * conK;
+    var floorK = (0.062 + (0.50 - 0.062) * gal) * infl * conK;
+    // Gallery keeps light near the installation so the far wall and the corners stay
+    // dark — the intimacy comes from that falloff, not from enclosing the room.
+    // Colour used to be pulled TIGHTER as the room darkened, which is why the
+    // background stayed neutral at the top of the travel. It now reaches further as
+    // well as growing stronger, so the lamps overlap and blend across the wall, while
+    // the inverse-square tail still leaves the far corners dark. Reach, not a tint.
+    var reach = sil * (2.05 + 0.50 * gal) * spreadK;
+    // Lamps are placed relative to the ball, so the pattern stays tied to the object
+    // at any viewport rather than scaling with the frame. The spread widens with the
+    // drag: at the party end the lamps throw light right across the room, which is
+    // what puts different colours in different corners instead of stacking them all
+    // behind the ball.
+    var K = (sil * (2.0 + 0.45 * gal) + Math.min(W, H) * (0.10 + 0.05 * gal)) * spreadK;
+    // A dark surface returns colour almost unwashed; a bright one washes it toward
+    // white. Deepening is a gallery move only: studio must not gain chroma.
+    var wallMix = (0.50 + 0.18 * frost) + ((0.10 + 0.14 * frost) - (0.50 + 0.18 * frost)) * gal;
+    var floorMix = 0.44 + (0.05 - 0.44) * gal;
+    // Richness is per material: each surface's own whitening is reduced, so the glass
+    // and the floor keep answering differently instead of sharing one saturation dial.
+    wallMix /= richK; floorMix /= richK;
+    if (wallMix > 1) { wallMix = 1; }
+    if (floorMix > 1) { floorMix = 1; }
+    var deep = 0.40 * gal * (this.pdeep == null ? 1 : this.pdeep) * richK;
+
+    // Overlapping lamps must not stack into clipped primaries, so share the budget.
+    var nW = 0, nF = 0;
+    for (i = 0; i < pls.length; i++) {
+      if (pls[i][2] < -0.02) { nW++; }
+      if (pls[i][1] > 0.02) { nF++; }
+    }
+    var shW = 1 / Math.sqrt(1 + 0.62 * (nW > 1 ? nW - 1 : 0));
+    var shF = 1 / Math.sqrt(1 + 0.62 * (nF > 1 ? nF - 1 : 0));
+
+    var eb = this.envBuf(W, H);
+    if (eb) {
+      var ex = eb.ctx, es = eb.s;
+      ex.setTransform(1, 0, 0, 1, 0, 0);
+      ex.globalCompositeOperation = 'source-over';
+      ex.clearRect(0, 0, eb.w, eb.h);
+      ex.globalCompositeOperation = 'lighter';
+      this.poolCtx = ex;
+      this.poolS = es;
+
+      if (nW) {
+        ex.save();
+        ex.beginPath();
+        ex.rect(0, 0, eb.w, baseY * es);
+        ex.clip();
+        for (i = 0; i < pls.length; i++) {
+          L = pls[i];
+          if (L[2] >= -0.02) { continue; }
+          wgt = (L[8] == null ? 1 : L[8]) * this.warmK(L, balK);
+          resp = (Math.pow(-L[2], 1.1) / (1 + 0.9 * (-L[2]))) * wgt;
+          a = resp * wallK * shW * (1 - 0.35 * frost);
+          // Frosted glass scatters, so its field is wider and softer than the floor's.
+          this.lampField(ox + L[0] * K * 0.85, oy - L[1] * K * 0.60,
+            reach * 1.30 * (0.85 + 0.50 * frost), reach * (0.85 + 0.50 * frost),
+            this.softCol(L, wallMix, deep), a, L[0], -L[1], L[9], gal);
+        }
+        ex.restore();
+      }
+
+      if (nF && baseY < H - 2) {
+        ex.save();
+        ex.beginPath();
+        ex.rect(0, baseY * es, eb.w, eb.h - baseY * es);
+        ex.clip();
+        for (i = 0; i < pls.length; i++) {
+          L = pls[i];
+          if (L[1] <= 0.02) { continue; }
+          wgt = (L[8] == null ? 1 : L[8]) * this.warmK(L, balK);
+          resp = (Math.pow(L[1], 0.85) / (1 + 1.2 * L[1])) * wgt;
+          a = resp * floorK * shF * (1 - 0.4 * frough);
+          // A polished floor returns a narrow streak; a rougher one spreads it sideways.
+          this.lampField(ox + L[0] * K * 0.55, baseY + (baseY - (oy - L[1] * K)) * 0.22,
+            reach * (0.42 + 0.55 * frough), reach * 0.95,
+            this.softCol(L, floorMix, deep), a, L[0], 0.35, L[9], gal);
+        }
+        ex.restore();
+      }
+
+      this.poolCtx = null;
+      this.poolS = 1;
+      if (nW || nF) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(eb.el, 0, 0, eb.w, eb.h, 0, 0, W, H);
+        ctx.restore();
+      }
+    }
+
+    this.nearBounce(p, W, H, ox, oy, sil, baseY, gal, frost, frough, infl, pls);
+  }
+
+  // The light the ball itself throws back into the surfaces immediately around it.
+  // Without this the ball reads as pasted onto the room — worst in the bright studio,
+  // where nothing else betrays that a coloured object is hanging there. It is the same
+  // rig averaged into a single close bounce, clipped to the wall and floor, never
+  // drawn over the ball, so it is contact light and not a halo.
+  nearBounce(p, W, H, ox, oy, sil, baseY, gal, frost, frough, infl, pls) {
+    if (!pls || !pls.length) { return; }
+    var i, L, wgt, tw = 0, r = 0, g = 0, b = 0;
+    for (i = 0; i < pls.length; i++) {
+      L = pls[i];
+      wgt = (L[7] == null ? 1 : L[7]) * (L[8] == null ? 1 : L[8]);
+      r += L[3] * wgt; g += L[4] * wgt; b += L[5] * wgt; tw += wgt;
+    }
+    if (tw < 0.0001) { return; }
+    r /= tw; g /= tw; b /= tw;
+    var mx = Math.max(r, Math.max(g, b));
+    if (mx < 0.0001) { return; }
+    r /= mx; g /= mx; b /= mx;
+    // Energy of the rig as a whole, rolled off so a maxed-out rig glows rather than clips.
+    var en = tw / (1 + tw);
+    // The rig's average colour, kept for anything else that must follow the ball.
+    var C = [0, 0, 0, r, g, b];
+    this.rigCol = C;
+    this.rigEn = en;
+    var ctx = this.ctx;
+    var self = this;
+
+    // Two physically different things happen at the two ends of the drag, and a
+    // canvas composite operation cannot be interpolated between them. So both are
+    // drawn, each weighted by where the drag sits. In the middle the surface is a
+    // mid grey that genuinely does a little of each: it absorbs the missing
+    // wavelengths and it picks up a little added light. Nothing switches over.
+    //
+    // Dark end: the bounce is light added to near-black, so it adds.
+    var addAmp = 0.115 * infl * en * gal;
+    // Bright end: a near-white surface is already at full value, so adding light to
+    // it does nothing. What actually happens is the reverse — the complementary
+    // wavelengths are missing from the bounce, so the surface loses a little green
+    // and blue under a red ball. That is a multiply, and it is how the studio shows
+    // the ball's colour without gaining any brightness.
+    var mulAmp = 0.95 * infl * en * (1 - gal);
+
+    var pass = function (mode, amp, wallCol, floorCol) {
+      if (amp < 0.002) { return; }
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, W, baseY);
+      ctx.clip();
+      ctx.globalCompositeOperation = mode;
+      // Sits just behind the ball on the glass, spread by how much the glass
+      // scatters. Wide on purpose: a pool the size of the ball would put all of its
+      // light behind the ball, where nothing can see it. The visible part is the tail.
+      self.lampPool(ox, oy, sil * (3.9 + 1.5 * frost), sil * (3.5 + 1.4 * frost),
+        wallCol, amp * (1 - 0.30 * frost));
+      ctx.restore();
+
+      if (baseY < H - 2) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, baseY, W, H - baseY);
+        ctx.clip();
+        ctx.globalCompositeOperation = mode;
+        // On the floor directly beneath the ball, flattened by the grazing view.
+        self.lampPool(ox, baseY + sil * 0.10, sil * (2.6 + 1.2 * frough), sil * 2.0,
+          floorCol, amp * 0.85 * (1 - 0.25 * frough));
+        ctx.restore();
+      }
+    };
+
+    pass('multiply', mulAmp, this.absorbCol(C, 0.15), this.absorbCol(C, 0.20));
+    var pd = this.pdeep == null ? 1 : this.pdeep;
+    pass('lighter', addAmp, this.softCol(C, 0.16, 0.30 * pd), this.softCol(C, 0.08, 0.30 * pd));
+  }
+
+  // The filter a coloured bounce acts as on a bright surface: white minus a fraction
+  // of what the light is missing. Used with 'multiply', so it tints without brightening.
+  absorbCol(L, k) {
+    var r = 255 * (1 - k * (1 - L[3]));
+    var g = 255 * (1 - k * (1 - L[4]));
+    var b = 255 * (1 - k * (1 - L[5]));
+    return 'rgba(' + Math.round(r) + ',' + Math.round(g) + ',' + Math.round(b) + ',';
+  }
+
+  envMirror(p, W, H, ox, oy, sil) {
+    if (typeof document === 'undefined') { return; }
+    if (this.floorOn === false) { return; }
+    var gal = this.gal == null ? 0 : this.gal;
+    var amt = 0.25 + (0.60 - 0.25) * gal;
+    var rough = 0.00 + (0.45 - 0.00) * gal;
+    var ctx = this.ctx, dpr = this.dpr;
+    var baseY = this.baseY == null ? H * 0.84 : this.baseY;
+    // Perspective compression of the floor plane, shared by the anchor and the flip.
+    var comp = 0.30 + 0.26 * (1 - rough);
+    // Mirror the ball through the floor plane: the reflection starts at the image
+    // of the ball's lowest point, not at the floor line. A ball hanging high sits
+    // far enough below to leave the frame, which is what a real floor would show.
+    var gap = baseY - (oy + sil);
+    if (gap < 0) { gap = 0; }
+    var refY = baseY + gap * comp;
+    if (refY > H - 6) { return; }
+    var gapN = this.gapN == null ? gap / (2 * sil) : this.gapN;
+    // Reflected light spreads with distance from the surface.
+    var hf = 1 / (1 + 1.15 * gapN);
+
+    var side = Math.max(24, Math.round(2 * sil * (0.34 - 0.24 * rough)));
+    if (!this.rc) {
+      this.rc = document.createElement('canvas');
+      this.r2 = document.createElement('canvas');
+      this.rcs = 0;
+    }
+    if (this.rcs !== side) {
+      this.rc.width = side; this.rc.height = side;
+      this.r2.width = side; this.r2.height = side;
+      this.rcs = side;
+      this.rx = this.rc.getContext('2d');
+      this.r2x = this.r2.getContext('2d');
+    }
+    var rx = this.rx, r2x = this.r2x;
+    if (!rx || !r2x) { return; }
+    rx.setTransform(1, 0, 0, 1, 0, 0);
+    rx.globalCompositeOperation = 'source-over';
+    rx.clearRect(0, 0, side, side);
+    // Sample the ball's own pixels. The source rect is left unclamped on purpose:
+    // canvas clips an off-canvas source and its destination in the same proportion,
+    // so the reflection stays registered with the ball even near a frame edge.
+    var sx = (ox - sil) * dpr, sy = (oy - sil) * dpr, ss = 2 * sil * dpr;
+    try { rx.drawImage(this.canvas, sx, sy, ss, ss, 0, 0, side, side); } catch (e) { return; }
+
+    r2x.setTransform(1, 0, 0, 1, 0, 0);
+    r2x.globalCompositeOperation = 'source-over';
+    r2x.clearRect(0, 0, side, side);
+    r2x.drawImage(this.rc, 0, 0);
+    r2x.globalCompositeOperation = 'destination-out';
+    var g = r2x.createLinearGradient(0, 0, 0, side);
+    g.addColorStop(0, 'rgba(0,0,0,0.96)');
+    g.addColorStop(0.5, 'rgba(0,0,0,0.44)');
+    g.addColorStop(1, 'rgba(0,0,0,0.04)');
+    r2x.fillStyle = g;
+    r2x.fillRect(0, 0, side, side);
+
+    // The sample is a square crop, so its corners hold wall, not ball. Reflecting
+    // them printed a hard-edged rectangle on the floor. Keep only the disc.
+    r2x.globalCompositeOperation = 'destination-in';
+    var hcs = side * 0.5;
+    var mk = r2x.createRadialGradient(hcs, hcs, 0, hcs, hcs, hcs);
+    mk.addColorStop(0, 'rgba(0,0,0,1)');
+    mk.addColorStop(0.86, 'rgba(0,0,0,1)');
+    mk.addColorStop(1, 'rgba(0,0,0,0)');
+    r2x.fillStyle = mk;
+    r2x.fillRect(0, 0, side, side);
+    r2x.globalCompositeOperation = 'source-over';
+
+    var a = amt * 0.42 * (1 - 0.35 * rough) * hf;
+    if (a > 0.85) { a = 0.85; }
+    if (a < 0.004) { return; }
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = a;
+    ctx.imageSmoothingEnabled = true;
+    ctx.translate(ox, refY);
+    ctx.scale(1, -comp);
+    ctx.drawImage(this.r2, 0, 0, side, side, -sil, -2 * sil, 2 * sil, 2 * sil);
+    ctx.restore();
+  }
+
+  envPost(p, W, H, ox, oy, sil) {
+    var ctx = this.ctx;
+    var gal = this.gal == null ? 0 : this.gal;
+    var vig = p.vignette == null ? 0.45 : p.vignette;
+    var haze = 1.15 * gal;
+    var vpY = H * (p.cameraHeight == null ? 0.55 : p.cameraHeight);
+
+    if (haze > 0.004) {
+      // Air in the room carries whatever colour is actually in it. Left as a fixed
+      // grey the gallery stayed cool no matter what the ball was doing; taking the
+      // tint from the live rig means amber and pink warm the room and blue cools it,
+      // with only a fraction of the rig's chroma so this stays air, not a colour wash.
+      var hc = [176, 182, 196];
+      var rc = this.rigCol;
+      if (rc) {
+        var k = 0.22 * Math.min(1, this.rigEn == null ? 1 : this.rigEn * 1.6);
+        var lum = 0.30 * rc[3] + 0.59 * rc[4] + 0.11 * rc[5];
+        if (lum > 0.0001) {
+          hc = [176 * (1 - k) + 176 * (rc[3] / lum) * k,
+            182 * (1 - k) + 182 * (rc[4] / lum) * k,
+            196 * (1 - k) + 196 * (rc[5] / lum) * k];
+          for (var q = 0; q < 3; q++) { hc[q] = Math.max(0, Math.min(255, Math.round(hc[q]))); }
+        }
+      }
+      var hs = hc[0] + ',' + hc[1] + ',' + hc[2] + ',';
+      var hr = Math.max(W, H) * 0.72;
+      var hg = ctx.createRadialGradient(W * 0.5, vpY, 0, W * 0.5, vpY, hr);
+      var ha = 0.030 * haze;
+      hg.addColorStop(0, 'rgba(' + hs + ha.toFixed(3) + ')');
+      hg.addColorStop(0.55, 'rgba(' + hs + (ha * 0.45).toFixed(3) + ')');
+      hg.addColorStop(1, 'rgba(' + hs + '0)');
+      ctx.fillStyle = hg;
+      ctx.fillRect(W * 0.5 - hr, vpY - hr, hr * 2, hr * 2);
+    }
+
+    if (vig > 0.004) {
+      var vr = Math.max(W, H) * 0.80;
+      // Vignette belongs to the lens and the frame, not to the subject: keep its
+      // falloff frame-relative so Ball Scale cannot change the room's exposure.
+      var vg = ctx.createRadialGradient(W * 0.5, H * 0.5, Math.min(W, H) * 0.16, W * 0.5, H * 0.5, vr);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(0.55, 'rgba(0,0,0,' + (0.10 * vig).toFixed(3) + ')');
+      vg.addColorStop(1, 'rgba(0,0,0,' + (0.34 * vig).toFixed(3) + ')');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // The suspension belongs to the rig, not to the ball.
+  //
+  // Scene hierarchy, as a real fixture hangs:  rig -> ball (facets + inner sphere).
+  // The rig's origin is the ball's centre. The rig carries the resting lean, the
+  // pointer's eased tilt and the slow sway; the ball inside it only spins. The cap
+  // and the rod are fixed to the rig at the ball's top pole, so they lean and sway
+  // with the ball's axis but never turn with it. Everything is projected through the
+  // same camera as the facets, so the rod meets the ball's top exactly for every
+  // value of Ball X, Ball Y, Ball Depth, Ball Scale and every tilt.
+  hanger(p, W, H, ox, oy, sil, front) {
+    if (p.hangerShow === false) { return; }
+    if (!front) { this.cabGeo = this.cableGeometry(p, W, H, ox, oy, sil); }
+    var g = this.cabGeo;
+    if (!g) { return; }
+    var sm = this.smat, sr = this.srefl, se = this.sexpo, sri = this.srim, pv = this.pscale, ck = this.chromeK;
+    this.chromeK = 0;
+    this.smat = this.tint('#C4C9D2');
+    this.srefl = 2.4;
+    this.sexpo = p.cableBrightness == null ? 1.4 : p.cableBrightness;
+    this.srim = 0.5;
+    this.pscale = 0.6;
+    if (!this.hwft) {
+      this.hwft = { fz: 1, j: 1, g: 1.2, sp: 1, tr: 1, tg: 1, tb: 1, rg: 0.1 };
+    }
+    var ft = this.hwft;
+
+    if (!front) {
+      // Drawn under the ball: wherever the cable passes behind it, the ball covers it.
+      this.cableStrip(g.pts, g.hw, ft);
+      if (!g.poleFront) { this.fitting(g, ft); }
+    } else {
+      // Tilted toward the camera, the cable rises in front of the ball's upper face,
+      // so the part over the ball is laid back on top of it.
+      if (g.front && g.overBall) {
+        var ctx = this.ctx;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(ox, oy, sil, 0, Math.PI * 2);
+        ctx.clip();
+        this.cableStrip(g.pts, g.hw, ft);
+        ctx.restore();
+      }
+      if (g.poleFront) { this.fitting(g, ft); }
+    }
+
+    this.smat = sm;
+    this.chromeK = ck;
+    this.srefl = sr;
+    this.sexpo = se;
+    this.srim = sri;
+    this.pscale = pv;
+  }
+
+  // Where the rig puts the suspension this frame.
+  cableGeometry(p, W, H, ox, oy, sil) {
+    var d = this.sd, f = this.sf, rb = this.srb == null ? 1 : this.srb;
+    if (!(d > 1.5) || !(f > 0)) { return null; }
+    var pit = this.pitch == null ? 0.11 : this.pitch;
+    var rol = this.roll || 0;
+    // The rig's up axis: sway about z, then lean about x (the same order the facets
+    // use), applied to (0, 1, 0).
+    var ux = -Math.sin(rol), uy0 = Math.cos(rol);
+    var uy = uy0 * Math.cos(pit), uz = uy0 * Math.sin(pit);
+
+    // Hardware dimensions in ball radii, so it scales with the ball like real parts.
+    var hc = 0.075, he = 0.045, rc = 0.040, re = 0.020, rs = 0.064;
+    var proj = function (x, y, z) {
+      var sc = f / (d - z);
+      return [ox + x * sc, oy - y * sc, sc];
+    };
+    var at = function (t) { return [ux * t, uy * t, uz * t]; };
+    var p0 = at(rb), p1 = at(rb + hc), p2 = at(rb + hc + he);
+    var P = proj(p0[0], p0[1], p0[2]);
+    var C = proj(p1[0], p1[1], p1[2]);
+    var E = proj(p2[0], p2[1], p2[2]);
+
+    // Is the pole on the side of the ball facing the camera?
+    var vx = -p0[0], vy = -p0[1], vz = d - p0[2];
+    var vl = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+    var facing = (ux * vx + uy * vy + uz * vz) / vl;
+
+    var s = sil / 240;
+    if (s < 0.5) { s = 0.5; } else if (s > 1.7) { s = 1.7; }
+    var hw = (p.cableThickness == null ? 3.4 : p.cableThickness) * 0.5 * s;
+    if (hw < 0.6) { hw = 0.6; }
+
+    // The rod: rigid, straight up the rig's axis from the eye, and on past the top of
+    // the frame. It is marched out until it has left the frame, however small or far
+    // the ball is, so its far end is never seen.
+    var t0 = rb + hc + he;
+    var step = Math.max(0.05, (d / f) * 40);
+    var pts = [E[0], E[1]], overBall = false, t = t0, i;
+    for (i = 0; i < 400; i++) {
+      t += step;
+      var q3 = at(t);
+      if (d - q3[2] < 0.3) { break; }
+      var q = proj(q3[0], q3[1], q3[2]);
+      pts.push(q[0], q[1]);
+      var ddx = q[0] - ox, ddy = q[1] - oy;
+      if (ddx * ddx + ddy * ddy < sil * sil) { overBall = true; }
+      if (q[1] < -hw - 6) { break; }
+    }
+    var ddx0 = E[0] - ox, ddy0 = E[1] - oy;
+    if (ddx0 * ddx0 + ddy0 * ddy0 < sil * sil) { overBall = true; }
+    // The rod's screen direction, which the cap is drawn along.
+    var adx = E[0] - P[0], ady = E[1] - P[1];
+    var ang = (adx * adx + ady * ady) > 0.01 ? Math.atan2(adx, -ady) : 0;
+
+    return {
+      pts: pts, hw: hw, ox: ox, oy: oy, sil: sil, P: P, C: C, E: E, s: P[2],
+      rc: rc, re: re, rs: rs, facing: facing, ang: ang,
+      poleFront: facing >= 0, front: uz > 0, overBall: overBall
+    };
+  }
+
+  // A thin polished cylinder along any path: the same shading bands the rest of the
+  // hardware uses, each one stroked along the curve at its offset across the width.
+  cableStrip(pts, hw, ft) {
+    var np = pts.length / 2;
+    if (np < 2) { return; }
+    var ctx = this.ctx, out = this.o2;
+    var nb = Math.max(4, Math.min(9, Math.round(hw * 2 / 1.1)));
+    var step = (hw * 2) / nb;
+    // screen normals per point, from the neighbouring segment directions
+    if (!this.cnrm) { this.cnrm = []; }
+    var nr = this.cnrm, i, j;
+    nr.length = np * 2;
+    for (i = 0; i < np; i++) {
+      var a0 = i > 0 ? i - 1 : i, a1 = i < np - 1 ? i + 1 : i;
+      var tx = pts[a1 * 2] - pts[a0 * 2], ty = pts[a1 * 2 + 1] - pts[a0 * 2 + 1];
+      var tl = Math.sqrt(tx * tx + ty * ty) || 1;
+      nr[i * 2] = -ty / tl; nr[i * 2 + 1] = tx / tl;
+    }
+    ctx.save();
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = step + 0.7;
+    for (j = 0; j < nb; j++) {
+      var um = -1 + (2 * j + 1) / nb;
+      var qq = 1 - um * um;
+      var nz = Math.sqrt(qq > 0.0001 ? qq : 0.0001);
+      this.shadeF(um * 0.55, 0.9, nz * 0.55, um, 0.02, nz, ft, 0.6, out);
+      ctx.strokeStyle = 'rgb(' + out[0] + ',' + out[1] + ',' + out[2] + ')';
+      var off = um * hw;
+      ctx.beginPath();
+      for (i = 0; i < np; i++) {
+        var x = pts[i * 2] + nr[i * 2] * off, y = pts[i * 2 + 1] + nr[i * 2 + 1] * off;
+        if (i === 0) { ctx.moveTo(x, y); } else { ctx.lineTo(x, y); }
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // The cap: a thin seat on the ball, a short collar, and the eye the rod enters.
+  // It is fixed to the rig, not the ball, so it never turns with the spin; it is
+  // axisymmetric and drawn along the rod's screen direction, so it leans and sways
+  // exactly with the rod. Minimal on purpose: hardware, not a motor housing.
+  fitting(g, ft) {
+    var sc = g.s, px = g.P[0], py = g.P[1];
+    var fk = Math.abs(g.facing);          // how much of the top faces the camera
+    var minr = function (v, m) { return v < m ? m : v; };
+    var cab = g.hw;
+    var rsP = minr(g.rs * sc, cab + 2.4);
+    var rcP = minr(g.rc * sc, cab + 1.6);
+    var reP = minr(g.re * sc, cab + 0.7);
+    var flat = function (r) { return minr(r * fk, 0.6); };
+    // Distances along the rod from the seat, in screen space.
+    var lC = Math.hypot(g.C[0] - px, g.C[1] - py);
+    var lE = Math.hypot(g.E[0] - px, g.E[1] - py);
+    var ctx = this.ctx;
+    // The cap bears the ball's weight, so it sits on the facets rather than hovering
+    // over them: the few facets it covers go into its shadow. Only when the pole
+    // faces the camera, and only on the ball.
+    if (g.poleFront && fk > 0.004) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(g.ox, g.oy, g.sil, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.translate(px, py);
+      ctx.rotate(g.ang);
+      ctx.scale(1, Math.max(0.12, fk * 1.4));
+      var ao = ctx.createRadialGradient(0, 0, rsP * 0.4, 0, 0, rsP * 1.9);
+      ao.addColorStop(0, 'rgba(0,0,0,0.42)');
+      ao.addColorStop(0.55, 'rgba(0,0,0,0.14)');
+      ao.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = ao;
+      ctx.fillRect(-rsP * 2, -rsP * 2, rsP * 4, rsP * 4);
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(g.ang);
+    // seat, where it bears on the facets
+    this.hwCap(0, 0, rsP, flat(rsP), 0.95, ft, 0.8, 0.72);
+    // collar
+    this.hwBand(0, -lC, 0, rcP, 0.98, ft, 0.9, 0.05);
+    this.hwCap(0, -lC, rcP, flat(rcP), 0.98, ft, 0.95, 0.85);
+    // eye
+    this.hwBand(0, -lE, -lC, reP, 1.0, ft, 0.8, 0.05);
+    this.hwCap(0, -lE, reP, flat(reP), 1.0, ft, 0.9, 0.85);
+    ctx.restore();
+  }
+
+}
+
+/* ===== Page shell ===== */
+(function () {
+  var KEYS = Object.keys(SCHEMA).filter(function (k) { return k.charAt(0) !== '$'; });
+  var CANVAS = {};
+  KEYS.forEach(function (k) { CANVAS[k] = SCHEMA[k].default; });
+  // The page opens on the ziyad.club hero look: black chrome in the dark room.
+  var HERO = {
+    partyEnvironment: 100, ballColor: '#000000', ballBrightness: 0.55, roomLight: 22, panelVariance: 1.95,
+    rimColor: '#000000', cableBrightness: 0.6, partyColorfulness: 0, vignette: 0.6
+  };
+  var DEFAULTS = Object.assign({}, CANVAS, HERO);
+
+  // The page's own option: render resolution cap (full-screen at 2x is heavy on weak GPUs).
+  var PAGE = { maxDpr: 2, fit: true };
+
+  var PRESETS = {
+    'Hero — dark room': {},
+    'Canvas board — purple studio': CANVAS
+  };
+
+  var store = {
+    get: function (k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
+  };
+
+  function clean(src) {
+    var out = {};
+    if (!src || typeof src !== 'object') { return out; }
+    KEYS.forEach(function (k) {
+      if (!(k in src)) { return; }
+      var s = SCHEMA[k], v = src[k];
+      if (s.editor === 'boolean') { out[k] = !!v; }
+      else if (s.editor === 'color') { if (/^#[0-9a-f]{3,8}$/i.test(v)) { out[k] = v.toLowerCase(); } }
+      else {
+        v = Number(v);
+        if (isFinite(v)) { out[k] = Math.min(s.max, Math.max(s.min, v)); }
+      }
+    });
+    return out;
+  }
+
+  function fromHash() {
+    var h = location.hash.replace(/^#/, '');
+    if (!h) { return null; }
+    try { return JSON.parse(decodeURIComponent(escape(atob(h.replace(/-/g, '+').replace(/_/g, '/'))))); } catch (e) { return null; }
+  }
+  function toHash(diff) {
+    var s = JSON.stringify(diff);
+    if (s === '{}') { return ''; }
+    return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  var saved = fromHash();
+  if (!saved) { try { saved = JSON.parse(store.get('zc-ball') || 'null'); } catch (e) { saved = null; } }
+  var props = Object.assign({}, DEFAULTS, clean(saved));
+  if (saved && saved.$fit === false) { PAGE.fit = false; }
+  if (saved && saved.$maxDpr) { PAGE.maxDpr = Math.min(2, Math.max(0.5, Number(saved.$maxDpr) || 2)); }
+
+  // Engine, with the resolution cap applied.
+  class Ball extends Component {
+    resize() {
+      var c = this.canvas;
+      if (!c) { return; }
+      var w = c.clientWidth || window.innerWidth;
+      var h = c.clientHeight || window.innerHeight;
+      var dpr = Math.min(window.devicePixelRatio || 1, PAGE.maxDpr);
+      this.w = w; this.h = h; this.dpr = dpr;
+      c.width = Math.round(w * dpr);
+      c.height = Math.round(h * dpr);
+    }
+  }
+  // On portrait phones the engine pulls the ball closer; this page scales it back so it fits.
+  var view = {};
+  Ball.prototype.tick = function (t) {
+    var W = this.w || 1, H = this.h || 1;
+    var fit = PAGE.fit && W / H < 0.9 ? Math.min(1, 1.55 * W / H) : 1;
+    if (fit < 1) {
+      for (var k in props) { view[k] = props[k]; }
+      view.ballScale = props.ballScale * fit;
+      this.props = view;
+    } else { this.props = props; }
+    return Component.prototype.tick.call(this, t);
+  };
+  var ball = new Ball(props);
+  var canvas = document.querySelector('canvas[data-disco]');
+  ball.onCanvas(canvas);
+  canvas.addEventListener('pointerdown', function () { document.body.classList.add('touched'); }, { once: true });
+
+  /* ---------- panel ---------- */
+  var root = document.getElementById('controls');
+  var rows = {};
+
+  function human(k) {
+    var m = k.match(/^sparkle(\d)(.*)$/);
+    var s = m ? m[2] : k.replace(/^sparkle(?=[A-Z])/, '');
+    s = s.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, function (c) { return c.toUpperCase(); });
+    s = s.toLowerCase().replace(/^./, function (c) { return c.toUpperCase(); });
+    return s.replace(/\bbg\b/i, 'Background');
+  }
+  function decimals(step) { var s = String(step); return s.indexOf('.') < 0 ? 0 : s.length - s.indexOf('.') - 1; }
+  function fmt(k, v) {
+    var s = SCHEMA[k];
+    return Number(v).toFixed(decimals(s.step || 1)) + (s.unit === '%' ? '%' : s.unit ? ' ' + s.unit : '');
+  }
+  function fill(input) {
+    var p = (input.value - input.min) / (input.max - input.min) * 100;
+    input.style.setProperty('--p', p + '%');
+  }
+
+  var persistT = 0;
+  function persist() {
+    clearTimeout(persistT);
+    persistT = setTimeout(function () {
+      var d = diff();
+      if (PAGE.maxDpr !== 2) { d.$maxDpr = PAGE.maxDpr; }
+      if (!PAGE.fit) { d.$fit = false; }
+      store.set('zc-ball', JSON.stringify(d));
+      var h = toHash(d);
+      history.replaceState(null, '', h ? '#' + h : location.pathname + location.search);
+    }, 180);
+  }
+  function diff() {
+    var d = {};
+    KEYS.forEach(function (k) { if (props[k] !== DEFAULTS[k]) { d[k] = props[k]; } });
+    return d;
+  }
+  function set(k, v, fromUI) {
+    props[k] = v;            // the engine reads props every frame: no re-render needed
+    var r = rows[k];
+    if (r) {
+      r.el.classList.toggle('changed', v !== DEFAULTS[k]);
+      if (!fromUI) { r.sync(v); }
+      else if (r.out) { r.out.textContent = fmt(k, v); }
+    }
+    persist();
+  }
+  function setAll(obj) {
+    KEYS.forEach(function (k) { set(k, k in obj ? obj[k] : DEFAULTS[k]); });
+  }
+
+  // group by section, keep schema order
+  var sections = [];
+  var bySection = {};
+  KEYS.forEach(function (k) {
+    var sec = SCHEMA[k].section || 'Other';
+    if (!bySection[sec]) { bySection[sec] = []; sections.push(sec); }
+    bySection[sec].push(k);
+  });
+  // fold Sparkle 1…8 into one group so the list stays short
+  var single = sections.filter(function (s) { return !/^Sparkle \d$/.test(s); });
+  var multi = sections.filter(function (s) { return /^Sparkle \d$/.test(s); });
+
+  function control(k) {
+    var s = SCHEMA[k];
+    var id = 'c-' + k;
+    var row = document.createElement('div');
+    row.className = 'row';
+    var label = document.createElement('label');
+    label.htmlFor = id;
+    label.textContent = human(k);
+    label.title = 'Click to reset';
+    label.addEventListener('click', function (e) {
+      if (!row.classList.contains('changed')) { return; }
+      e.preventDefault();
+      set(k, DEFAULTS[k]);
+    });
+    row.appendChild(label);
+    var r = { el: row };
+
+    if (s.editor === 'boolean') {
+      var sw = document.createElement('span'); sw.className = 'switch';
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = id; cb.checked = !!props[k];
+      cb.addEventListener('change', function () { set(k, cb.checked, true); });
+      sw.appendChild(cb); sw.appendChild(document.createElement('i'));
+      row.appendChild(sw);
+      r.sync = function (v) { cb.checked = !!v; };
+    } else if (s.editor === 'color') {
+      var wrap = document.createElement('span'); wrap.className = 'color';
+      var pick = document.createElement('input'); pick.type = 'color'; pick.id = id;
+      var txt = document.createElement('input'); txt.type = 'text'; txt.spellcheck = false; txt.maxLength = 7;
+      txt.setAttribute('aria-label', human(k) + ' hex');
+      var norm = function (v) { return /^#[0-9a-f]{3}$/i.test(v) ? '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3] : v.slice(0, 7); };
+      pick.value = norm(props[k]); txt.value = props[k];
+      pick.addEventListener('input', function () { txt.value = pick.value; set(k, pick.value, true); });
+      txt.addEventListener('change', function () {
+        var v = txt.value.trim(); if (v[0] !== '#') { v = '#' + v; }
+        if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) { v = v.toLowerCase(); pick.value = norm(v); txt.value = v; set(k, v, true); }
+        else { txt.value = props[k]; }
+      });
+      wrap.appendChild(pick); wrap.appendChild(txt); row.appendChild(wrap);
+      r.sync = function (v) { pick.value = norm(v); txt.value = v; };
+    } else {
+      var out = document.createElement('output'); out.className = 'val'; out.htmlFor = id;
+      out.textContent = fmt(k, props[k]);
+      var rg = document.createElement('input'); rg.type = 'range'; rg.id = id;
+      rg.min = s.min; rg.max = s.max; rg.step = s.step || 1; rg.value = props[k];
+      fill(rg);
+      rg.addEventListener('input', function () { fill(rg); set(k, Number(rg.value), true); });
+      row.appendChild(out); row.appendChild(rg);
+      r.out = out;
+      r.sync = function (v) { rg.value = v; fill(rg); out.textContent = fmt(k, v); };
+    }
+    row.classList.toggle('changed', props[k] !== DEFAULTS[k]);
+    rows[k] = r;
+    return row;
+  }
+
+  function group(title, keys, open, count) {
+    var d = document.createElement('details');
+    if (open) { d.open = true; }
+    var sm = document.createElement('summary');
+    sm.textContent = title;
+    if (count) { var n = document.createElement('span'); n.className = 'n'; n.textContent = count; sm.appendChild(n); }
+    d.appendChild(sm);
+    var body = document.createElement('div'); body.className = 'rows';
+    d.appendChild(body);
+    // build rows lazily the first time the group opens: 100+ controls stay cheap
+    var built = false;
+    function build() {
+      if (built) { return; } built = true;
+      keys.forEach(function (k) {
+        if (typeof k === 'string') { body.appendChild(control(k)); }
+        else { body.appendChild(k); }
+      });
+    }
+    if (open) { build(); }
+    d.addEventListener('toggle', function () { if (d.open) { build(); } });
+    d._build = build;
+    return d;
+  }
+
+  var groups = [];
+  single.forEach(function (sec, i) {
+    var g = group(sec, bySection[sec], i < 2);
+    groups.push(g); root.appendChild(g);
+  });
+  if (multi.length) {
+    var inner = multi.map(function (sec) { return group(sec, bySection[sec], false); });
+    var g = group('Individual sparkles', inner, false, String(multi.length));
+    g.addEventListener('toggle', function () { if (!g.open) { return; } });
+    groups.push(g); root.appendChild(g);
+  }
+  // page options
+  (function () {
+    var row = document.createElement('div'); row.className = 'row';
+    var label = document.createElement('label'); label.htmlFor = 'c-res'; label.textContent = 'Resolution';
+    var sel = document.createElement('select'); sel.id = 'c-res';
+    sel.style.cssText = 'height:26px;border-radius:6px;border:1px solid var(--line);background:rgba(242,241,237,.04);color:var(--ink);font:inherit;font-size:12px;padding:0 8px;';
+    [[2, 'Sharp (2×)'], [1.5, 'Balanced (1.5×)'], [1, 'Fast (1×)'], [0.75, 'Fastest (0.75×)']].forEach(function (o) {
+      var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1];
+      op.style.background = '#141312';
+      if (o[0] === PAGE.maxDpr) { op.selected = true; }
+      sel.appendChild(op);
+    });
+    sel.addEventListener('change', function () { PAGE.maxDpr = Number(sel.value); ball.resize(); persist(); });
+    row.appendChild(label); row.appendChild(sel);
+    var row2 = document.createElement('div'); row2.className = 'row';
+    var l2 = document.createElement('label'); l2.htmlFor = 'c-fit'; l2.textContent = 'Fit ball on phones';
+    var sw = document.createElement('span'); sw.className = 'switch';
+    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'c-fit'; cb.checked = PAGE.fit;
+    cb.addEventListener('change', function () { PAGE.fit = cb.checked; persist(); });
+    sw.appendChild(cb); sw.appendChild(document.createElement('i'));
+    row2.appendChild(l2); row2.appendChild(sw);
+    var g = group('Page', [row, row2], false);
+    root.appendChild(g);
+  })();
+
+  // make sure any key changed by a link/preset is visible as changed once its group opens
+  function buildAll() { groups.forEach(function (g) { g._build(); }); }
+
+  /* ---------- presets & actions ---------- */
+  var presetSel = document.getElementById('preset');
+  var custom = document.createElement('option'); custom.value = ''; custom.textContent = 'Preset…';
+  presetSel.appendChild(custom);
+  Object.keys(PRESETS).forEach(function (name) {
+    var o = document.createElement('option'); o.value = name; o.textContent = name; presetSel.appendChild(o);
+  });
+  presetSel.addEventListener('change', function () {
+    if (!presetSel.value) { return; }
+    setAll(PRESETS[presetSel.value]);
+    toast(presetSel.value);
+    presetSel.value = '';
+  });
+
+  var toastEl = document.getElementById('toast'), toastT = 0;
+  function toast(msg) {
+    toastEl.textContent = msg; toastEl.classList.add('on');
+    clearTimeout(toastT); toastT = setTimeout(function () { toastEl.classList.remove('on'); }, 1600);
+  }
+  function copy(text, msg) {
+    var done = function () { toast(msg); };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+    } else { fallback(); }
+    function fallback() {
+      var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('Couldn’t copy'); }
+      ta.remove();
+    }
+  }
+  document.getElementById('copyLink').addEventListener('click', function () {
+    var h = toHash(diff());
+    copy(location.origin + location.pathname + (h ? '#' + h : ''), 'Link copied');
+  });
+  document.getElementById('copyJson').addEventListener('click', function () {
+    copy(JSON.stringify(Object.assign({}, props), null, 2), 'All settings copied as JSON');
+  });
+  document.getElementById('reset').addEventListener('click', function () { setAll({}); toast('Back to the hero look'); });
+
+  window.addEventListener('hashchange', function () {
+    var h = fromHash(); if (h) { setAll(clean(h)); }
+  });
+
+  /* ---------- open / close ---------- */
+  var panel = document.getElementById('panel');
+  var toggle = document.getElementById('toggle');
+  function open(on) {
+    panel.hidden = !on;
+    toggle.setAttribute('aria-expanded', String(on));
+    toggle.querySelector('span').textContent = on ? 'Close' : 'Tweak';
+  }
+  toggle.addEventListener('click', function () { open(panel.hidden); });
+  panel.addEventListener('keydown', function (e) { if (e.key === 'Escape') { open(false); toggle.focus(); } });
+  if (window.matchMedia('(min-width: 641px)').matches && !/[?&]clean\b/.test(location.search)) { open(true); }
+  if (/[?&]clean\b/.test(location.search)) {
+    toggle.style.display = 'none';
+    document.querySelector('.mark').style.display = 'none';
+    document.querySelector('.hint').style.display = 'none';
+  }
+
+  // Pause drawing when the page is hidden (rAF already throttles; this stops it fully).
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (ball.raf) { cancelAnimationFrame(ball.raf); ball.raf = 0; } }
+    else if (!ball.raf) {
+      ball.last = 0;
+      var step = function (t) { ball.raf = requestAnimationFrame(step); ball.tick(t); };
+      ball.raf = requestAnimationFrame(step);
+    }
+  });
+
+  window.zcBall = { props: props, set: set, setAll: setAll, defaults: DEFAULTS };
+})();
+</script>
+</body>
+</html>
