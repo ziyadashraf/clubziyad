@@ -2476,7 +2476,7 @@ class Component extends DCLogic {
     if (TILT.on && PAGE.tilt) {
       var now = performance.now(), dt = TILT.last ? Math.min(0.05, (now - TILT.last) / 1000) : 0.016;
       TILT.last = now;
-      TILT.roll += (TILT.side - TILT.roll) * Math.min(1, dt * 3);
+      TILT.roll += (TILT.side - TILT.roll) * Math.min(1, dt * 2);
       this.roll += TILT.roll;
     }
     return Component.prototype.draw.call(this);
@@ -2494,8 +2494,8 @@ class Component extends DCLogic {
     if (TILT.base === null) { TILT.base = fb; }
     TILT.base += (fb - TILT.base) * (1 - Math.exp(-dt / 8));   // recentres over ~8 s
     var clamp = function (v, m) { return v > m ? m : v < -m ? -m : v; };
-    ball.tiltTarget = clamp((fb - TILT.base) / 25, 1) * 0.3;
-    TILT.side = clamp(lr / 25, 1) * -0.3;
+    ball.tiltTarget = clamp((fb - TILT.base) / 45, 1) * 0.18;
+    TILT.side = clamp(lr / 45, 1) * -0.16;
     if (!TILT.on) { TILT.on = true; setTiltState('on'); }
   }
   var tiltOut = null;
